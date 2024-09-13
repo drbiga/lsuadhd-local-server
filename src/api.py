@@ -1,0 +1,136 @@
+import asyncio
+from fastapi import FastAPI, status, HTTPException
+from session import Session
+from connection import Connection
+from feedback import collect_feedback, clean
+from timing import TimingService
+from personal_analytics import get_tracking_data
+from tracking import UserInput, WindowsActivity
+
+
+def create_app() -> FastAPI:
+    connection = Connection()
+
+    app = FastAPI()
+
+    global stop_collection
+    stop_collection = False
+    global current_worker_id
+    current_worker_id = 0
+
+    @app.post("/session")
+    async def set_session(session: Session) -> None:
+        global stop_collection
+        global current_worker_id
+
+        print(session.model_dump())
+        connection.set_session(session)
+        if connection.check_user_has_active_session():
+            # If the session is already running, we want to start
+            # collecting feedback
+            current_worker_id += 1
+            asyncio.ensure_future(worker(current_worker_id))
+        # At every new session that is set, we should stop
+        # sending feedbacks in case we are sending them
+
+    @app.get("/session")
+    def get_session() -> Session:
+        if connection.session is not None:
+            return connection.session
+        else:
+            message = "The user has not logged in on the web app yet"
+            print(message)
+            raise HTTPException(
+                status.HTTP_412_PRECONDITION_FAILED,
+                {"status": "err", "message": message},
+            )
+
+    @app.post("/collection")
+    async def start_collecting():
+        global current_worker_id
+        current_worker_id += 1
+        asyncio.ensure_future(worker(current_worker_id))
+
+    @app.post("/tracking")
+    def send_tracking_database():
+        user_input_batch, windows_activity_batch = get_tracking_data()
+        user_input_batch = [
+            UserInput(
+                username=connection.session.user.username,
+                filename=ui.filename,
+                id=ui.id,
+                ts_time=ui.time,
+                ts_start=ui.tsStart,
+                ts_end=ui.tsEnd,
+                keys_total=ui.keyTotal,
+                clicks_total=ui.clickTotal,
+                scroll_delta=ui.scrollDelta,
+                moved_distance=ui.movedDistance,
+            ).model_dump()
+            for ui in user_input_batch
+        ]
+        windows_activity_batch = [
+            WindowsActivity(
+                username=connection.session.user.username,
+                filename=wa.filename,
+                id=wa.id,
+                ts_time=wa.time,
+                ts_start=wa.tsStart,
+                ts_end=wa.tsEnd,
+                window_name=wa.window,
+                process_name=wa.process,
+            ).model_dump()
+            for wa in windows_activity_batch
+        ]
+        connection.upload_tracking_user_input_batch(
+            connection.session.user.username, user_input_batch
+        )
+        connection.upload_tracking_windows_activity_batch(
+            connection.session.user.username, windows_activity_batch
+        )
+
+    async def worker(wid: int):
+        global current_worker_id
+        timing_service = TimingService()
+        print("Starting worker...")
+        while current_worker_id == wid:
+            # Waits for the amount of time needed to run the loop once every minute
+            await timing_service.wait()
+
+            # Computing how much time it takes to run the feedback
+            # to account for that in the wait method. If sending
+            # the feedback and getting it back takes 20 seconds,
+            # then the wait method will wait for 40 seconds, making
+            # the whole loop execute once every minute
+            timing_service.start_iteration()
+
+            feedback = collect_feedback()
+            print("Sending feedback")
+            print(feedback.model_dump())
+            session_still_active = connection.send_feedback(feedback)
+            clean(feedback)
+            processed_feedback = connection.get_current_feedback()
+            print("=" * 80)
+            print("Processed feedback")
+            print(processed_feedback)
+            print("=" * 80)
+            if (
+                "output" in processed_feedback
+                and processed_feedback["output"] == "distracted"
+            ):
+                print("Setting time to wait to 20")
+                timing_service.set_time(20)
+            else:
+                print("Setting time to wait to 60")
+                timing_service.set_time(60)
+
+            timing_service.finish_iteration()
+
+            if not session_still_active:
+                print("Session is not active anymore")
+                break
+
+        send_tracking_database()
+        print("Worker finished")
+
+    return app

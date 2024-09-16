@@ -6,6 +6,7 @@ from feedback import collect_feedback, clean
 from timing import TimingService
 from personal_analytics import get_tracking_data
 from tracking import UserInput, WindowsActivity
+import webbrowser
 
 
 def create_app() -> FastAPI:
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
             # collecting feedback
             current_worker_id += 1
             asyncio.ensure_future(worker(current_worker_id))
+            asyncio.ensure_future(chrome_comeback_worker(current_worker_id))
         # At every new session that is set, we should stop
         # sending feedbacks in case we are sending them
 
@@ -49,6 +51,7 @@ def create_app() -> FastAPI:
     async def start_collecting():
         global current_worker_id
         current_worker_id += 1
+        asyncio.ensure_future(chrome_comeback_worker(current_worker_id))
         asyncio.ensure_future(worker(current_worker_id))
 
     @app.post("/tracking")
@@ -88,6 +91,21 @@ def create_app() -> FastAPI:
         connection.upload_tracking_windows_activity_batch(
             connection.session.user.username, windows_activity_batch
         )
+
+    async def chrome_comeback_worker(wid: int):
+        global current_worker_id
+        print("Chrome comeback sob")
+        while current_worker_id == wid:
+            print("Chrome comeback sob")
+            await asyncio.sleep(1)
+            print("Checking if user has to return to survey ... ", end="")
+            if connection.check_user_has_finished_homework():
+                print("Yes")
+                webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
+                # webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
+                break
+            print("No")
+        print("Chrome comeback worker finished")
 
     async def worker(wid: int):
         global current_worker_id

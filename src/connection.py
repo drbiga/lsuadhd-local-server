@@ -82,6 +82,25 @@ class Connection:
             student = response.json()
             return student["active_session"] is not None
 
+    def check_user_has_finished_homework(self) -> bool:
+        response = requests.get(
+            f"{self.base_url}/session_execution/student",
+            params={"student_name": self.session.user.username},
+        )
+        if response.status_code != 200:
+            print(response.status_code)
+            return False
+        else:
+            student = response.json()
+            if "active_session" in student:
+                print(student["active_session"])
+                return (
+                    student["active_session"]["stage"] == "homework"
+                    and student["active_session"]["remaining_time_seconds"] < 1 * 60
+                ) or student["active_session"]["stage"] == "survey"
+            else:
+                return False
+
     def upload_tracking_user_input_batch(
         self, student_name: str, batch: list[dict]
     ) -> None:

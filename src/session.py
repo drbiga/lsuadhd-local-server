@@ -4,6 +4,7 @@ from enum import StrEnum, auto
 
 import requests
 
+
 class Role(StrEnum):
     MANAGER = auto()
     STUDENT = auto()

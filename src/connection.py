@@ -96,7 +96,7 @@ class Connection:
                 print(student["active_session"])
                 return (
                     student["active_session"]["stage"] == "homework"
-                    and student["active_session"]["remaining_time_seconds"] < 1 * 60
+                    and student["active_session"]["remaining_time_seconds"] < 5
                 ) or student["active_session"]["stage"] == "survey"
             else:
                 return False

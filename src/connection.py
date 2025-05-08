@@ -19,7 +19,9 @@ class Connection:
         host = os.getenv("BACKEND_HOST")
         port = int(os.getenv("BACKEND_PORT"))
         self.base_url = f"http{'s' if port == 443 else ''}://{host}:{port}"
+        print(self.base_url)
         response = requests.get(f"{self.base_url}/health_check")
+        print("Here")
         if response.status_code != 200 or response.json()["status"] != "ok":
             raise HealthCheckError()
         self.session = None
@@ -44,6 +46,7 @@ class Connection:
         pa_feedback_str = json.dumps(feedback.personal_analytics_data.model_dump())
 
         with open(feedback.screenshot, "rb") as screenshot_file:
+            print("Sending feedback")
             response = requests.post(
                 f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
                 headers={"Authorization": f"Bearer {self.session.token}"},
@@ -52,8 +55,19 @@ class Connection:
                 },
                 files={"screenshot_file": screenshot_file},
             )
-
-        print(response.json())
+        print("Feedback sent")
+        try:
+            print(
+                f"Got {response.status_code} while sending feedback:", response.json()
+            )
+        except:
+            try:
+                print(
+                    f"Got {response.status_code} while sending feedback:",
+                    response.content,
+                )
+            except:
+                pass
 
         if response.status_code == 400:
             if response.json()["detail"]["errcode"] == 1:
@@ -93,7 +107,7 @@ class Connection:
         else:
             student = response.json()
             if "active_session" in student:
-                print(student["active_session"])
+                # print(student["active_session"])
                 return (
                     student["active_session"]["stage"] == "homework"
                     and student["active_session"]["remaining_time_seconds"] < 5
@@ -105,11 +119,17 @@ class Connection:
         self, student_name: str, batch: list[dict]
     ) -> None:
         try:
+            print("Uploading user input tracking data", batch[0])
             response = requests.post(
                 f"{self.base_url}/tracking/user_input",
                 json=batch,
                 params={"student_name": student_name},
             )
+            if response.status_code != 200:
+                print("Upload tracking user input did not return 200")
+                print(response.status_code)
+
+            print("Success:", response.json())
         except Exception as e:
             print(e)
             print("Error while uploading tracking data")
@@ -118,11 +138,16 @@ class Connection:
         self, student_name: str, batch: list[dict]
     ) -> None:
         try:
+            print("Uploading window activity tracking data", batch[0])
             response = requests.post(
                 f"{self.base_url}/tracking/windows_activity",
                 json=batch,
                 params={"student_name": student_name},
             )
+            if response.status_code != 200:
+                print("Upload tracking windows activity did not return 200")
+                print(response.status_code)
+            print("Success:", response.json())
         except Exception as e:
             print(e)
             print("Error while uploading tracking data")

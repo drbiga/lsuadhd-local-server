@@ -5,13 +5,15 @@ from dotenv import load_dotenv
 
 from feedback import collect_feedback
 from api import create_app
+from personal_analytics import get_base_dir
 
 
 def main():
     load_dotenv()
+    get_base_dir()
 
-    # from personal_analytics import compress_database
-    # compress_database()
+    # print("Here")
+    # return
 
     app = create_app()
     app.add_middleware(

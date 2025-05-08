@@ -9,12 +9,6 @@ import sqlite3 as sql
 from datetime import datetime
 
 
-DATABASE_DIR = f'C:/Users/{os.getenv("USERNAME")}/OneDrive/Documents/PersonalAnalytics'
-DATABASE_FILENAME_NO_EXTENSION = "pa-database"
-ARCHIVE_FORMAT = "zip"
-ARCHIVE_FORMAT_EXTENSION = "zip"
-
-
 class PersonalAnalyticsData(BaseModel):
     isFocused: int
     clickTotal: int
@@ -26,22 +20,6 @@ class PersonalAnalyticsData(BaseModel):
 def get_feedback_personal_analytics() -> PersonalAnalyticsData:
     pa_data = requests.get("http://localhost:57827/intervention_status").json()
     return PersonalAnalyticsData(**pa_data)
-
-
-# def compress_database() -> str:
-#     """Compresses the entire personal analytics database and returns the filename"""
-#     shutil.make_archive(
-#         DATABASE_FILENAME_NO_EXTENSION,
-#         ARCHIVE_FORMAT,
-#         DATABASE_DIR,
-#     )
-#     path = f"{DATABASE_FILENAME_NO_EXTENSION}.{ARCHIVE_FORMAT_EXTENSION}"
-#     return path
-
-
-# def delete_compressed_database() -> None:
-#     path = f"{DATABASE_FILENAME_NO_EXTENSION}.{ARCHIVE_FORMAT_EXTENSION}"
-#     os.remove(path)
 
 
 class UserInput(BaseModel):
@@ -66,12 +44,27 @@ class WindowsActivity(BaseModel):
     process: str
 
 
+def get_base_dir() -> str:
+    base_dirs_list = [
+        "C:/Users/bigar/OneDrive/Documents1/PersonalAnalytics",
+        "C:/Users/bigar/Documents1/PersonalAnalytics",
+        f"{os.getenv('UserProfile')}\\OneDrive\\Documents\\PersonalAnalytics",
+        f"{os.getenv('UserProfile')}\\Documents\\PersonalAnalytics",
+    ]
+    for base_dir in base_dirs_list:
+        if os.path.exists(base_dir):
+            return base_dir
+
+    raise Exception("Directory for personal analytics database does not exist")
+
+
 def get_tracking_data() -> Tuple[List[UserInput], List[WindowsActivity]]:
-    username = os.getenv("USERNAME")
-    if username == "bigar":
-        base_dir = f"C:/Users/{username}/OneDrive/Documents/PersonalAnalytics"
-    else:
-        base_dir = f"C:/Users/{username}/Documents/PersonalAnalytics"
+    # username = os.getenv("USERNAME")
+    # if username == "bigar":
+    #     base_dir = f"C:/Users/{username}/OneDrive/Documents/PersonalAnalytics"
+    # else:
+    #     base_dir = f"C:/Users/{username}/Documents/PersonalAnalytics"
+    base_dir = get_base_dir()
     paths = [
         f"{base_dir}/{filename}"
         for filename in os.listdir(base_dir)

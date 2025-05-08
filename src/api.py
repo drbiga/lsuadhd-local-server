@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
 
     @app.post("/tracking")
     def send_tracking_database():
+        print("Starting to send tracking database")
         user_input_batch, windows_activity_batch = get_tracking_data()
         user_input_batch = [
             UserInput(
@@ -85,12 +86,23 @@ def create_app() -> FastAPI:
             ).model_dump()
             for wa in windows_activity_batch
         ]
-        connection.upload_tracking_user_input_batch(
-            connection.session.user.username, user_input_batch
+        print(
+            "TOTAL COUNT OF ROWS FOR ONE AND THE OTHER:",
+            len(user_input_batch),
+            len(windows_activity_batch),
         )
-        connection.upload_tracking_windows_activity_batch(
-            connection.session.user.username, windows_activity_batch
-        )
+        batch_size = 10000
+        for i in range(len(user_input_batch) // batch_size + 1):
+            connection.upload_tracking_user_input_batch(
+                connection.session.user.username,
+                user_input_batch[i * batch_size : (i + 1) * batch_size],
+            )
+
+        for i in range(len(windows_activity_batch) // batch_size + 1):
+            connection.upload_tracking_windows_activity_batch(
+                connection.session.user.username,
+                windows_activity_batch[i * batch_size : (i + 1) * batch_size],
+            )
 
     async def chrome_comeback_worker(wid: int):
         global current_worker_id
@@ -125,13 +137,21 @@ def create_app() -> FastAPI:
             feedback = collect_feedback()
             print("Sending feedback")
             print(feedback.model_dump())
-            session_still_active = connection.send_feedback(feedback)
-            clean(feedback)
+            try:
+                session_still_active = connection.send_feedback(feedback)
+            except:
+                timing_service.finish_iteration()
+                continue
+            print("Session is still active:", session_still_active)
+            # clean(feedback)
             processed_feedback = connection.get_current_feedback()
             print("=" * 80)
             print("Processed feedback")
             print(processed_feedback)
             print("=" * 80)
+            if processed_feedback is None:
+                timing_service.finish_iteration()
+                continue
             if (
                 "output" in processed_feedback
                 and processed_feedback["output"] == "distracted"

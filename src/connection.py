@@ -59,13 +59,12 @@ class Connection:
         logging.info("Feedback sent")
         try:
             logging.info(
-                f"Got {response.status_code} while sending feedback:", response.json()
+                f"Got {response.status_code} while sending feedback: {response.json()}"
             )
         except:
             try:
                 logging.info(
-                    f"Got {response.status_code} while sending feedback:",
-                    response.content,
+                    f"Got {response.status_code} while sending feedback: {response.content}"
                 )
             except:
                 pass
@@ -91,7 +90,9 @@ class Connection:
             params={"student_name": self.session.user.username},
         )
         if response.status_code != 200:
-            logging.info(response.status_code)
+            logging.debug(
+                f"Received status code {response.status_code} in Connection.check_user_has_active_session()"
+            )
             return False
         else:
             student = response.json()
@@ -103,7 +104,9 @@ class Connection:
             params={"student_name": self.session.user.username},
         )
         if response.status_code != 200:
-            logging.info(response.status_code)
+            logging.debug(
+                f"Received status code {response.status_code} in Connection.check_user_has_finished_homework()"
+            )
             return False
         else:
             student = response.json()
@@ -127,28 +130,30 @@ class Connection:
                 params={"student_name": student_name},
             )
             if response.status_code != 200:
-                logging.info("Upload tracking user input did not return 200")
-                logging.info(response.status_code)
+                logging.debug(
+                    f"Received status code {response.status_code} in Connection.upload_tracking_user_input_batch()"
+                )
 
-            logging.info("Success:", response.json())
+            logging.info(f"Success when uploading tracking data: {response.json()}")
         except Exception as e:
-            logging.info(e)
-            logging.info("Error while uploading tracking data")
+            logging.debug(e)
+            logging.debug("Error while uploading tracking data")
 
     def upload_tracking_windows_activity_batch(
         self, student_name: str, batch: list[dict]
     ) -> None:
         try:
-            logging.info("Uploading window activity tracking data", batch[0])
+            logging.info(f"Uploading window activity tracking data: {batch[0]}")
             response = requests.post(
                 f"{self.base_url}/tracking/windows_activity",
                 json=batch,
                 params={"student_name": student_name},
             )
             if response.status_code != 200:
-                logging.info("Upload tracking windows activity did not return 200")
-                logging.info(response.status_code)
-            logging.info("Success:", response.json())
+                logging.debug(
+                    f"Received status code {response.status_code} in Connection.upload_traupload_tracking_windows_activity_batchcking_user_input_batch()"
+                )
+            logging.info(f"Success: {response.json()}")
         except Exception as e:
-            logging.info(e)
-            logging.info("Error while uploading tracking data")
+            logging.debug(e)
+            logging.debug("Error while uploading tracking data")

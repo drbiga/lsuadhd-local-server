@@ -62,6 +62,6 @@ class TimingService:
         else:
             time_to_wait = self.time_to_wait - statistics.mean(self.previous_iterations)
 
-        logging.info(f"\nWaiting for {time_to_wait}\n")
+        logging.info(f"Waiting for {time_to_wait}")
         if time_to_wait > 0:
             await asyncio.sleep(time_to_wait)

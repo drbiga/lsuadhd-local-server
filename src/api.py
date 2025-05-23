@@ -1,6 +1,7 @@
 import os
 
 import logging
+import json
 
 import asyncio
 from fastapi import FastAPI, status, HTTPException
@@ -28,7 +29,7 @@ def create_app() -> FastAPI:
         global stop_collection
         global current_worker_id
 
-        logging.info(session.model_dump())
+        logging.info(json.dumps(session.model_dump()))
         connection.set_session(session)
         if connection.check_user_has_active_session():
             # If the session is already running, we want to start
@@ -91,9 +92,7 @@ def create_app() -> FastAPI:
             for wa in windows_activity_batch
         ]
         logging.info(
-            "TOTAL COUNT OF ROWS FOR ONE AND THE OTHER:",
-            len(user_input_batch),
-            len(windows_activity_batch),
+            f"TOTAL COUNT OF ROWS FOR ONE AND THE OTHER: {len(user_input_batch)} {len(windows_activity_batch)}"
         )
         batch_size = 10000
         for i in range(len(user_input_batch) // batch_size + 1):
@@ -114,15 +113,14 @@ def create_app() -> FastAPI:
         while current_worker_id == wid:
             logging.info("Chrome comeback sob")
             await asyncio.sleep(1)
-            logging.info("Checking if user has to return to survey ... ", end="")
             if connection.check_user_has_finished_homework():
-                logging.info("Yes")
+                logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
                     webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
                 else:
                     webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
                 break
-            logging.info("No")
+            logging.info("Checking if user has to return to survey ... No")
         logging.info("Chrome comeback worker finished")
 
     async def worker(wid: int):
@@ -142,19 +140,19 @@ def create_app() -> FastAPI:
 
             feedback = collect_feedback()
             logging.info("Sending feedback")
-            logging.info(feedback.model_dump())
+            logging.info(json.dumps(feedback.model_dump()))
             try:
                 session_still_active = connection.send_feedback(feedback)
             except:
                 timing_service.finish_iteration()
                 continue
-            logging.info("Session is still active:", session_still_active)
+            logging.info(f"Session is still active: {session_still_active}")
             # clean(feedback)
             processed_feedback = connection.get_current_feedback()
-            logging.info("=" * 80)
+            logging.info("-" * 40)
             logging.info("Processed feedback")
-            logging.info(processed_feedback)
-            logging.info("=" * 80)
+            logging.info(json.dumps(processed_feedback))
+            logging.info("-" * 40)
             if processed_feedback is None:
                 timing_service.finish_iteration()
                 continue

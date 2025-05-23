@@ -1,3 +1,5 @@
+import os
+
 import asyncio
 from fastapi import FastAPI, status, HTTPException
 from session import Session
@@ -113,8 +115,10 @@ def create_app() -> FastAPI:
             print("Checking if user has to return to survey ... ", end="")
             if connection.check_user_has_finished_homework():
                 print("Yes")
-                webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
-                # webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
+                if os.getenv("ENV", None) == "test":
+                    webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
+                else:
+                    webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
                 break
             print("No")
         print("Chrome comeback worker finished")
@@ -152,15 +156,15 @@ def create_app() -> FastAPI:
             if processed_feedback is None:
                 timing_service.finish_iteration()
                 continue
-            if (
-                "output" in processed_feedback
-                and processed_feedback["output"] == "distracted"
-            ):
-                print("Setting time to wait to 20")
-                timing_service.set_time(20)
-            else:
-                print("Setting time to wait to 60")
-                timing_service.set_time(60)
+            # if (
+            #     "output" in processed_feedback
+            #     and processed_feedback["output"] == "distracted"
+            # ):
+            #     print("Setting time to wait to 20")
+            #     timing_service.set_time(20)
+            # else:
+            #     print("Setting time to wait to 60")
+            #     timing_service.set_time(60)
 
             timing_service.finish_iteration()
 

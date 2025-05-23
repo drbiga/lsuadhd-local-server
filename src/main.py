@@ -1,3 +1,7 @@
+import os
+
+import logging
+
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,10 +14,16 @@ from personal_analytics import get_base_dir
 
 def main():
     load_dotenv()
-    get_base_dir()
+    logging.basicConfig(format="[%(asctime)s] %(message)s", level=logging.INFO)
 
-    # print("Here")
-    # return
+    env = os.getenv("ENV")
+    if env == "test":
+        logging.info("Environment set to test")
+    else:
+        logging.info("Environment set to production")
+
+    pa_base_dir = get_base_dir()
+    logging.info(f"Base personal analytics path is {pa_base_dir}")
 
     app = create_app()
     app.add_middleware(

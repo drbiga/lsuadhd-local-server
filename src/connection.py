@@ -19,9 +19,7 @@ class Connection:
         host = os.getenv("BACKEND_HOST")
         port = int(os.getenv("BACKEND_PORT"))
         self.base_url = f"http{'s' if port == 443 else ''}://{host}:{port}"
-        print(self.base_url)
         response = requests.get(f"{self.base_url}/health_check")
-        print("Here")
         if response.status_code != 200 or response.json()["status"] != "ok":
             raise HealthCheckError()
         self.session = None

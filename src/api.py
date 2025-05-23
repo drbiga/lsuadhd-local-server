@@ -1,5 +1,7 @@
 import os
 
+import logging
+
 import asyncio
 from fastapi import FastAPI, status, HTTPException
 from session import Session
@@ -26,7 +28,7 @@ def create_app() -> FastAPI:
         global stop_collection
         global current_worker_id
 
-        print(session.model_dump())
+        logging.info(session.model_dump())
         connection.set_session(session)
         if connection.check_user_has_active_session():
             # If the session is already running, we want to start
@@ -43,7 +45,7 @@ def create_app() -> FastAPI:
             return connection.session
         else:
             message = "The user has not logged in on the web app yet"
-            print(message)
+            logging.info(message)
             raise HTTPException(
                 status.HTTP_412_PRECONDITION_FAILED,
                 {"status": "err", "message": message},
@@ -58,7 +60,7 @@ def create_app() -> FastAPI:
 
     @app.post("/tracking")
     def send_tracking_database():
-        print("Starting to send tracking database")
+        logging.info("Starting to send tracking database")
         user_input_batch, windows_activity_batch = get_tracking_data()
         user_input_batch = [
             UserInput(
@@ -88,7 +90,7 @@ def create_app() -> FastAPI:
             ).model_dump()
             for wa in windows_activity_batch
         ]
-        print(
+        logging.info(
             "TOTAL COUNT OF ROWS FOR ONE AND THE OTHER:",
             len(user_input_batch),
             len(windows_activity_batch),
@@ -108,25 +110,25 @@ def create_app() -> FastAPI:
 
     async def chrome_comeback_worker(wid: int):
         global current_worker_id
-        print("Chrome comeback sob")
+        logging.info("Chrome comeback sob")
         while current_worker_id == wid:
-            print("Chrome comeback sob")
+            logging.info("Chrome comeback sob")
             await asyncio.sleep(1)
-            print("Checking if user has to return to survey ... ", end="")
+            logging.info("Checking if user has to return to survey ... ", end="")
             if connection.check_user_has_finished_homework():
-                print("Yes")
+                logging.info("Yes")
                 if os.getenv("ENV", None) == "test":
                     webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
                 else:
                     webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
                 break
-            print("No")
-        print("Chrome comeback worker finished")
+            logging.info("No")
+        logging.info("Chrome comeback worker finished")
 
     async def worker(wid: int):
         global current_worker_id
         timing_service = TimingService()
-        print("Starting worker...")
+        logging.info("Starting worker...")
         while current_worker_id == wid:
             # Waits for the amount of time needed to run the loop once every minute
             await timing_service.wait()
@@ -139,20 +141,20 @@ def create_app() -> FastAPI:
             timing_service.start_iteration()
 
             feedback = collect_feedback()
-            print("Sending feedback")
-            print(feedback.model_dump())
+            logging.info("Sending feedback")
+            logging.info(feedback.model_dump())
             try:
                 session_still_active = connection.send_feedback(feedback)
             except:
                 timing_service.finish_iteration()
                 continue
-            print("Session is still active:", session_still_active)
+            logging.info("Session is still active:", session_still_active)
             # clean(feedback)
             processed_feedback = connection.get_current_feedback()
-            print("=" * 80)
-            print("Processed feedback")
-            print(processed_feedback)
-            print("=" * 80)
+            logging.info("=" * 80)
+            logging.info("Processed feedback")
+            logging.info(processed_feedback)
+            logging.info("=" * 80)
             if processed_feedback is None:
                 timing_service.finish_iteration()
                 continue
@@ -160,19 +162,19 @@ def create_app() -> FastAPI:
             #     "output" in processed_feedback
             #     and processed_feedback["output"] == "distracted"
             # ):
-            #     print("Setting time to wait to 20")
+            #     logging.info("Setting time to wait to 20")
             #     timing_service.set_time(20)
             # else:
-            #     print("Setting time to wait to 60")
+            #     logging.info("Setting time to wait to 60")
             #     timing_service.set_time(60)
 
             timing_service.finish_iteration()
 
             if not session_still_active:
-                print("Session is not active anymore")
+                logging.info("Session is not active anymore")
                 break
 
         send_tracking_database()
-        print("Worker finished")
+        logging.info("Worker finished")
 
     return app

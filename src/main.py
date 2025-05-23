@@ -14,7 +14,14 @@ from personal_analytics import get_base_dir
 
 def main():
     load_dotenv()
-    logging.basicConfig(format="[%(asctime)s] %(message)s", level=logging.INFO)
+    logging.basicConfig(
+        format="[%(asctime)s] %(message)s",
+        level=logging.INFO,
+        filename="info.log",
+        filemode="a",
+    )
+    logging.info("=" * 80)
+    logging.info("Starting new execution")
 
     env = os.getenv("ENV")
     if env == "test":

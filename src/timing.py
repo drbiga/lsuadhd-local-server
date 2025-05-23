@@ -1,3 +1,5 @@
+import logging
+
 import asyncio
 
 import datetime
@@ -60,6 +62,6 @@ class TimingService:
         else:
             time_to_wait = self.time_to_wait - statistics.mean(self.previous_iterations)
 
-        print(f"\nWaiting for {time_to_wait}\n")
+        logging.info(f"\nWaiting for {time_to_wait}\n")
         if time_to_wait > 0:
             await asyncio.sleep(time_to_wait)

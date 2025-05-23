@@ -1,4 +1,7 @@
 import os
+
+import logging
+
 import requests
 import json
 
@@ -33,7 +36,7 @@ class Connection:
             response.status_code == 200
             and response.json()["token"] == self.session.token
         ):
-            print("Connected")
+            logging.info("Connected")
         else:
             raise ConnectionError("It was not possible to connect to the backend")
 
@@ -44,7 +47,7 @@ class Connection:
         pa_feedback_str = json.dumps(feedback.personal_analytics_data.model_dump())
 
         with open(feedback.screenshot, "rb") as screenshot_file:
-            print("Sending feedback")
+            logging.info("Sending feedback")
             response = requests.post(
                 f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
                 headers={"Authorization": f"Bearer {self.session.token}"},
@@ -53,14 +56,14 @@ class Connection:
                 },
                 files={"screenshot_file": screenshot_file},
             )
-        print("Feedback sent")
+        logging.info("Feedback sent")
         try:
-            print(
+            logging.info(
                 f"Got {response.status_code} while sending feedback:", response.json()
             )
         except:
             try:
-                print(
+                logging.info(
                     f"Got {response.status_code} while sending feedback:",
                     response.content,
                 )
@@ -88,7 +91,7 @@ class Connection:
             params={"student_name": self.session.user.username},
         )
         if response.status_code != 200:
-            print(response.status_code)
+            logging.info(response.status_code)
             return False
         else:
             student = response.json()
@@ -100,12 +103,12 @@ class Connection:
             params={"student_name": self.session.user.username},
         )
         if response.status_code != 200:
-            print(response.status_code)
+            logging.info(response.status_code)
             return False
         else:
             student = response.json()
             if "active_session" in student:
-                # print(student["active_session"])
+                # logging.info(student["active_session"])
                 return (
                     student["active_session"]["stage"] == "homework"
                     and student["active_session"]["remaining_time_seconds"] < 5
@@ -117,35 +120,35 @@ class Connection:
         self, student_name: str, batch: list[dict]
     ) -> None:
         try:
-            print("Uploading user input tracking data", batch[0])
+            logging.info("Uploading user input tracking data", batch[0])
             response = requests.post(
                 f"{self.base_url}/tracking/user_input",
                 json=batch,
                 params={"student_name": student_name},
             )
             if response.status_code != 200:
-                print("Upload tracking user input did not return 200")
-                print(response.status_code)
+                logging.info("Upload tracking user input did not return 200")
+                logging.info(response.status_code)
 
-            print("Success:", response.json())
+            logging.info("Success:", response.json())
         except Exception as e:
-            print(e)
-            print("Error while uploading tracking data")
+            logging.info(e)
+            logging.info("Error while uploading tracking data")
 
     def upload_tracking_windows_activity_batch(
         self, student_name: str, batch: list[dict]
     ) -> None:
         try:
-            print("Uploading window activity tracking data", batch[0])
+            logging.info("Uploading window activity tracking data", batch[0])
             response = requests.post(
                 f"{self.base_url}/tracking/windows_activity",
                 json=batch,
                 params={"student_name": student_name},
             )
             if response.status_code != 200:
-                print("Upload tracking windows activity did not return 200")
-                print(response.status_code)
-            print("Success:", response.json())
+                logging.info("Upload tracking windows activity did not return 200")
+                logging.info(response.status_code)
+            logging.info("Success:", response.json())
         except Exception as e:
-            print(e)
-            print("Error while uploading tracking data")
+            logging.info(e)
+            logging.info("Error while uploading tracking data")

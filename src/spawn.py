@@ -1,4 +1,7 @@
 import os
+
+import logging
+
 import json
 import subprocess
 import psutil
@@ -37,16 +40,16 @@ class LocalServerProcess:
             try:
                 p = psutil.Process(old_pid)
                 p.kill()  # or p.terminate() for a graceful shutdown
-                print(f"Killed process with PID {old_pid}")
+                logging.info(f"Killed process with PID {old_pid}")
             except psutil.NoSuchProcess:
-                print(f"No process with PID {old_pid} found.")
+                logging.info(f"No process with PID {old_pid} found.")
             except psutil.AccessDenied:
-                print(f"Permission denied to kill PID {old_pid}.")
+                logging.info(f"Permission denied to kill PID {old_pid}.")
 
         # Step 2: Spawn new process
         process = subprocess.Popen(self.start_server_command.split())
         new_pid = process.pid
-        print(f"Spawned new process with PID {new_pid}")
+        logging.info(f"Spawned new process with PID {new_pid}")
 
         # Step 3: Save new PID to metadata
         self.set_metadata({"pid": new_pid})

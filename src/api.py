@@ -116,7 +116,7 @@ def create_app() -> FastAPI:
             if connection.check_user_has_finished_homework():
                 logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
-                    webbrowser.open("http://localhost:5173/lsuadhd-frontend/")
+                    webbrowser.open("http://localhost/")
                 else:
                     webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
                 break

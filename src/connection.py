@@ -48,14 +48,18 @@ class Connection:
 
         with open(feedback.screenshot, "rb") as screenshot_file:
             logging.info("Sending feedback")
-            response = requests.post(
-                f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
-                headers={"Authorization": f"Bearer {self.session.token}"},
-                params={
-                    "pa_feedback_str": pa_feedback_str,
-                },
-                files={"screenshot_file": screenshot_file},
-            )
+            try:
+                response = requests.post(
+                    f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
+                    headers={"Authorization": f"Bearer {self.session.token}"},
+                    params={
+                        "pa_feedback_str": pa_feedback_str,
+                    },
+                    files={"screenshot_file": screenshot_file},
+                )
+            except Exception as e:
+                logging.error("There was an error while sending the feedback")
+                logging.error(str(e))
         logging.info("Feedback sent")
         try:
             logging.info(
@@ -137,7 +141,7 @@ class Connection:
             logging.info(f"Success when uploading tracking data: {response.json()}")
         except Exception as e:
             logging.debug(e)
-            logging.debug("Error while uploading tracking data")
+            logging.debug("Error while uploading windows activity batch")
 
     def upload_tracking_windows_activity_batch(
         self, student_name: str, batch: list[dict]
@@ -153,7 +157,9 @@ class Connection:
                 logging.debug(
                     f"Received status code {response.status_code} in Connection.upload_traupload_tracking_windows_activity_batchcking_user_input_batch()"
                 )
-            logging.info(f"Success: {response.json()}")
+            logging.info(
+                f"Success when uploading windows activity batch: {response.json()}"
+            )
         except Exception as e:
             logging.debug(e)
             logging.debug("Error while uploading tracking data")

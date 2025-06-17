@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
         # sending feedbacks in case we are sending them
 
     @app.get("/session")
-    def get_session() -> Session:
+    async def get_session() -> Session:
         if connection.session is not None:
             return connection.session
         else:
@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
         asyncio.ensure_future(worker(current_worker_id))
 
     @app.post("/tracking")
-    def send_tracking_database():
+    async def send_tracking_database():
         logging.info("Starting to send tracking database")
         user_input_batch, windows_activity_batch = get_tracking_data()
         user_input_batch = [
@@ -172,7 +172,7 @@ def create_app() -> FastAPI:
                 logging.info("Session is not active anymore")
                 break
 
-        send_tracking_database()
+        await send_tracking_database()
         logging.info("Worker finished")
 
     return app

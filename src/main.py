@@ -32,6 +32,9 @@ def main():
     pa_base_dir = get_base_dir()
     logging.info(f"Base personal analytics path is {pa_base_dir}")
 
+    if not os.path.exists("screenshots"):
+        os.mkdir("screenshots")
+
     app = create_app()
     app.add_middleware(
         CORSMiddleware,

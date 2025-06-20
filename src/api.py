@@ -1,5 +1,7 @@
 import os
 
+import httpx
+
 import logging
 import json
 
@@ -23,6 +25,17 @@ def create_app() -> FastAPI:
     stop_collection = False
     global current_worker_id
     current_worker_id = 0
+
+    @app.get("/checkPA")
+    async def check_pa() -> bool:
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    "http://localhost:57827/intervention_status"
+                )
+                return True
+            except:
+                return False
 
     @app.post("/session")
     async def set_session(session: Session) -> None:

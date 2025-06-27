@@ -14,6 +14,12 @@ from personal_analytics import get_base_dir
 
 def main():
     load_dotenv()
+
+    env = os.getenv("ENV")
+
+    if env == "test":
+        os.remove("info.log")
+
     logging.basicConfig(
         format="[%(asctime)s] %(message)s",
         level=logging.INFO,
@@ -23,7 +29,6 @@ def main():
     logging.info("=" * 80)
     logging.info("Starting new execution")
 
-    env = os.getenv("ENV")
     if env == "test":
         logging.info("Environment set to test")
     else:

@@ -2,6 +2,7 @@ import os
 
 import logging
 
+import httpx
 import requests
 import json
 
@@ -33,17 +34,20 @@ class Connection:
     def set_session(self, session: Session) -> None:
         self.session = session
 
-    def connect(self) -> None:
-        response = requests.get(f"{self.base_url}/iam/session/{self.session.token}")
-        if (
-            response.status_code == 200
-            and response.json()["token"] == self.session.token
-        ):
-            logging.info("Connected")
-        else:
-            raise ConnectionError("It was not possible to connect to the backend")
+    async def connect(self) -> None:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/iam/session/{self.session.token}"
+            )
+            if (
+                response.status_code == 200
+                and response.json()["token"] == self.session.token
+            ):
+                logging.info("Connected")
+            else:
+                raise ConnectionError("It was not possible to connect to the backend")
 
-    def send_feedback(self, feedback: Feedback) -> bool:
+    async def send_feedback(self, feedback: Feedback) -> bool:
         """Returns a flag if session is still active and false otherwise.
         This is used to control the state and know when to stop sending
         feedbacks to the backend"""
@@ -51,18 +55,19 @@ class Connection:
 
         with open(feedback.screenshot, "rb") as screenshot_file:
             logging.info("Sending feedback")
-            try:
-                response = requests.post(
-                    f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
-                    headers={"Authorization": f"Bearer {self.session.token}"},
-                    params={
-                        "pa_feedback_str": pa_feedback_str,
-                    },
-                    files={"screenshot_file": screenshot_file},
-                )
-            except Exception as e:
-                logging.error("There was an error while sending the feedback")
-                logging.error(str(e))
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.post(
+                        f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
+                        headers={"Authorization": f"Bearer {self.session.token}"},
+                        params={
+                            "pa_feedback_str": pa_feedback_str,
+                        },
+                        files={"screenshot_file": screenshot_file},
+                    )
+                except Exception as e:
+                    logging.error("There was an error while sending the feedback")
+                    logging.error(str(e))
         logging.info("Feedback sent")
         try:
             logging.info(
@@ -81,88 +86,99 @@ class Connection:
                 return False
         return True
 
-    def get_current_feedback(self) -> dict:
-        response = requests.get(
-            f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
-            headers={"Authorization": f"Bearer {self.session.token}"},
-        )
-        try:
-            return response.json()
-        except:
-            return None
-
-    def check_user_has_active_session(self) -> bool:
-        response = requests.get(
-            f"{self.base_url}/session_execution/student",
-            params={"student_name": self.session.user.username},
-        )
-        if response.status_code != 200:
-            logging.debug(
-                f"Received status code {response.status_code} in Connection.check_user_has_active_session()"
+    async def get_current_feedback(self) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
+                headers={"Authorization": f"Bearer {self.session.token}"},
             )
-            return False
-        else:
-            student = response.json()
-            return student["active_session"] is not None
+            try:
+                return response.json()
+            except:
+                return None
 
-    def check_user_has_finished_homework(self) -> bool:
-        response = requests.get(
-            f"{self.base_url}/session_execution/student",
-            params={"student_name": self.session.user.username},
-        )
-        if response.status_code != 200:
-            logging.debug(
-                f"Received status code {response.status_code} in Connection.check_user_has_finished_homework()"
+    async def check_user_has_active_session(self) -> bool:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/session_execution/student",
+                params={"student_name": self.session.user.username},
             )
-            return False
-        else:
-            student = response.json()
-            if "active_session" in student:
-                # logging.info(student["active_session"])
-                return (
-                    student["active_session"]["stage"] == "homework"
-                    and student["active_session"]["remaining_time_seconds"] < 5
-                ) or student["active_session"]["stage"] == "survey"
+            if response.status_code != 200:
+                logging.debug(
+                    f"Received status code {response.status_code} in Connection.check_user_has_active_session()"
+                )
+                return False
             else:
+                student = response.json()
+                if len(student["sessions"]) == 0:
+                    return False
+                if student["sessions"][-1]["stage"] != "FINISHED":
+                    return True
                 return False
 
-    def upload_tracking_user_input_batch(
-        self, student_name: str, batch: list[dict]
-    ) -> None:
-        try:
-            logging.info("Uploading user input tracking data", batch[0])
-            response = requests.post(
-                f"{self.base_url}/tracking/user_input",
-                json=batch,
-                params={"student_name": student_name},
+    async def check_user_has_finished_homework(self) -> bool:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/session_execution/student",
+                params={"student_name": self.session.user.username},
             )
             if response.status_code != 200:
                 logging.debug(
-                    f"Received status code {response.status_code} in Connection.upload_tracking_user_input_batch()"
+                    f"Received status code {response.status_code} in Connection.check_user_has_finished_homework()"
                 )
+                return False
+            else:
+                student = response.json()
+                assert "sessions" in student
+                if len(student["sessions"]) == 0:
+                    logging.error(
+                        "[ Connection.check_user_has_finished_homework() ] Tried to check if user has finished homework but user does not even have an active session"
+                    )
+                    raise RuntimeError("Student does not have an active session")
+                return (
+                    student["sessions"][-1]["stage"] == "homework"
+                    and student["sessions"][-1]["remaining_time_seconds"] < 5
+                ) or student["sessions"][-1]["stage"] == "survey"
 
-            logging.info(f"Success when uploading tracking data: {response.json()}")
-        except Exception as e:
-            logging.debug(e)
-            logging.debug("Error while uploading windows activity batch")
-
-    def upload_tracking_windows_activity_batch(
+    async def upload_tracking_user_input_batch(
         self, student_name: str, batch: list[dict]
     ) -> None:
-        try:
-            logging.info(f"Uploading window activity tracking data: {batch[0]}")
-            response = requests.post(
-                f"{self.base_url}/tracking/windows_activity",
-                json=batch,
-                params={"student_name": student_name},
-            )
-            if response.status_code != 200:
-                logging.debug(
-                    f"Received status code {response.status_code} in Connection.upload_traupload_tracking_windows_activity_batchcking_user_input_batch()"
+        async with httpx.AsyncClient() as client:
+            try:
+                logging.info("Uploading user input tracking data", batch[0])
+                response = await client.post(
+                    f"{self.base_url}/tracking/user_input",
+                    json=batch,
+                    params={"student_name": student_name},
                 )
-            logging.info(
-                f"Success when uploading windows activity batch: {response.json()}"
-            )
-        except Exception as e:
-            logging.debug(e)
-            logging.debug("Error while uploading tracking data")
+                if response.status_code != 200:
+                    logging.debug(
+                        f"Received status code {response.status_code} in Connection.upload_tracking_user_input_batch()"
+                    )
+
+                logging.info(f"Success when uploading tracking data: {response.json()}")
+            except Exception as e:
+                logging.debug(e)
+                logging.debug("Error while uploading windows activity batch")
+
+    async def upload_tracking_windows_activity_batch(
+        self, student_name: str, batch: list[dict]
+    ) -> None:
+        async with httpx.AsyncClient() as client:
+            try:
+                logging.info(f"Uploading window activity tracking data: {batch[0]}")
+                response = await client.post(
+                    f"{self.base_url}/tracking/windows_activity",
+                    json=batch,
+                    params={"student_name": student_name},
+                )
+                if response.status_code != 200:
+                    logging.debug(
+                        f"Received status code {response.status_code} in Connection.upload_traupload_tracking_windows_activity_batchcking_user_input_batch()"
+                    )
+                logging.info(
+                    f"Success when uploading windows activity batch: {response.json()}"
+                )
+            except Exception as e:
+                logging.debug(e)
+                logging.debug("Error while uploading tracking data")

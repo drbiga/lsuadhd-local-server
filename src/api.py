@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
 
         logging.info(json.dumps(session.model_dump()))
         connection.set_session(session)
-        if connection.check_user_has_active_session():
+        if await connection.check_user_has_active_session():
             # If the session is already running, we want to start
             # collecting feedback
             current_worker_id += 1
@@ -109,13 +109,13 @@ def create_app() -> FastAPI:
         )
         batch_size = 10000
         for i in range(len(user_input_batch) // batch_size + 1):
-            connection.upload_tracking_user_input_batch(
+            await connection.upload_tracking_user_input_batch(
                 connection.session.user.username,
                 user_input_batch[i * batch_size : (i + 1) * batch_size],
             )
 
         for i in range(len(windows_activity_batch) // batch_size + 1):
-            connection.upload_tracking_windows_activity_batch(
+            await connection.upload_tracking_windows_activity_batch(
                 connection.session.user.username,
                 windows_activity_batch[i * batch_size : (i + 1) * batch_size],
             )
@@ -126,7 +126,7 @@ def create_app() -> FastAPI:
         while current_worker_id == wid:
             logging.info("Chrome comeback sob")
             await asyncio.sleep(1)
-            if connection.check_user_has_finished_homework():
+            if await connection.check_user_has_finished_homework():
                 logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
                     webbrowser.open("http://localhost/")
@@ -155,13 +155,13 @@ def create_app() -> FastAPI:
             logging.info("Sending feedback")
             logging.info(json.dumps(feedback.model_dump()))
             try:
-                session_still_active = connection.send_feedback(feedback)
+                session_still_active = await connection.send_feedback(feedback)
             except:
                 timing_service.finish_iteration()
                 continue
             logging.info(f"Session is still active: {session_still_active}")
             # clean(feedback)
-            processed_feedback = connection.get_current_feedback()
+            processed_feedback = await connection.get_current_feedback()
             logging.info("-" * 40)
             logging.info("Processed feedback")
             logging.info(json.dumps(processed_feedback))
@@ -185,6 +185,9 @@ def create_app() -> FastAPI:
                 logging.info("Session is not active anymore")
                 break
 
+        logging.info(
+            "Session worker exited. Initiating personal analytics database dump"
+        )
         await send_tracking_database()
         logging.info("Worker finished")
 

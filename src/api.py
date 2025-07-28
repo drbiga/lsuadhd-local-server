@@ -67,10 +67,19 @@ def create_app() -> FastAPI:
 
     @app.post("/collection")
     async def start_collecting():
-        global current_worker_id
+        global current_worker_id, stop_collection
+        stop_collection = False
         current_worker_id += 1
         asyncio.ensure_future(chrome_comeback_worker(current_worker_id))
         asyncio.ensure_future(worker(current_worker_id))
+
+    @app.post("/stop_collection")
+    async def stop_collecting():
+        global stop_collection, current_worker_id
+        stop_collection = True
+        current_worker_id += 1
+        logging.info("Data collection has now been stopped.")
+        return {"status": "success", "message": "Data collection stopped successfully"}
 
     @app.post("/tracking")
     async def send_tracking_database():
@@ -121,26 +130,26 @@ def create_app() -> FastAPI:
             )
 
     async def chrome_comeback_worker(wid: int):
-        global current_worker_id
+        global current_worker_id, stop_collection
         logging.info("Chrome comeback sob")
-        while current_worker_id == wid:
+        while current_worker_id == wid and not stop_collection:
             logging.info("Chrome comeback sob")
             await asyncio.sleep(1)
             if await connection.check_user_has_finished_homework():
                 logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
-                    webbrowser.open("http://localhost/")
+                    webbrowser.open("http://localhost:5173/lsuadhd-frontend/?autoclose=true")
                 else:
-                    webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/")
+                    webbrowser.open("https://drbiga.github.io/lsuadhd-frontend/?autoclose=true")
                 break
             logging.info("Checking if user has to return to survey ... No")
         logging.info("Chrome comeback worker finished")
 
     async def worker(wid: int):
-        global current_worker_id
+        global current_worker_id, stop_collection
         timing_service = TimingService()
         logging.info("Starting worker...")
-        while current_worker_id == wid:
+        while current_worker_id == wid and not stop_collection:
             # Waits for the amount of time needed to run the loop once every minute
             await timing_service.wait()
 
@@ -160,29 +169,11 @@ def create_app() -> FastAPI:
                 timing_service.finish_iteration()
                 continue
             logging.info(f"Session is still active: {session_still_active}")
-            # clean(feedback)
-            processed_feedback = await connection.get_current_feedback()
-            logging.info("-" * 40)
-            logging.info("Processed feedback")
-            logging.info(json.dumps(processed_feedback))
-            logging.info("-" * 40)
-            if processed_feedback is None:
-                timing_service.finish_iteration()
-                continue
-            # if (
-            #     "output" in processed_feedback
-            #     and processed_feedback["output"] == "distracted"
-            # ):
-            #     logging.info("Setting time to wait to 20")
-            #     timing_service.set_time(20)
-            # else:
-            #     logging.info("Setting time to wait to 60")
-            #     timing_service.set_time(60)
 
             timing_service.finish_iteration()
 
-            if not session_still_active:
-                logging.info("Session is not active anymore")
+            if not session_still_active or stop_collection:
+                logging.info("Session is not active anymore or collection stopped.")
                 break
 
         logging.info(

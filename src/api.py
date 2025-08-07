@@ -139,10 +139,12 @@ def create_app() -> FastAPI:
                 logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
                     webbrowser.open(
-                        "http://localhost:5173/lsuadhd-frontend/?autoclose=true"
+                        "http://localhost:5173/?autoclose=true"
                     )
                 else:
-                    webbrowser.open(os.getenv("FRONTEND_URL"))
+                    frontend_url = os.getenv("FRONTEND_URL")
+                    url = f"{frontend_url}?autoclose=true"
+                    webbrowser.open(url)
                 break
             logging.info("Checking if user has to return to survey ... No")
         logging.info("Chrome comeback worker finished")

@@ -7,6 +7,11 @@ from enum import IntEnum
 
 import statistics
 
+# While testing the backend with the backend client, a 14-second delay was observed
+# while posting feedbacks with a "focused" screenshot. For some reason, "distracted"
+# screenshots are processed faster, but we'll account for the worst case.
+OBSERVED_FEEDBACK_INGESTION_TIME = 14
+
 
 class State(IntEnum):
     TRACKING_ITERATION = 1
@@ -14,7 +19,7 @@ class State(IntEnum):
 
 
 class TimingService:
-    DEFAULT_TIME_TO_WAIT = 30
+    DEFAULT_TIME_TO_WAIT = 30 - OBSERVED_FEEDBACK_INGESTION_TIME
     MOVING_AVERAGE_SIZE = 10
 
     def __init__(self) -> None:

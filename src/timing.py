@@ -1,3 +1,4 @@
+import os
 import logging
 
 import asyncio
@@ -19,8 +20,12 @@ class State(IntEnum):
 
 
 class TimingService:
-    DEFAULT_TIME_TO_WAIT = 30 - OBSERVED_FEEDBACK_INGESTION_TIME
+    # DEFAULT_TIME_TO_WAIT = 30 - OBSERVED_FEEDBACK_INGESTION_TIME
     MOVING_AVERAGE_SIZE = 10
+    if os.getenv("ENV", "prod") == "prod":
+        DEFAULT_TIME_TO_WAIT = 30
+    else:
+        DEFAULT_TIME_TO_WAIT = 0.1
 
     def __init__(self) -> None:
         self.previous_iterations = []
@@ -35,6 +40,9 @@ class TimingService:
 
     def start_iteration(self) -> None:
         if self.state == State.TRACKING_ITERATION:
+            logging.error(
+                "[ TimingService.start_iteration ] There is already an iteration being tracked"
+            )
             raise RuntimeError("There is already an iteration being tracked")
 
         self.current_start_time = datetime.datetime.now()
@@ -60,12 +68,17 @@ class TimingService:
         self.current_finish_time = None
         self.state = State.NOT_TRACKING_ITERATION
 
-    async def wait(self) -> None:
+    def compute_time_to_wait(self) -> float:
         if len(self.previous_iterations) < TimingService.MOVING_AVERAGE_SIZE:
             # Program just started and we have not collected enough samples
             time_to_wait = self.time_to_wait
         else:
             time_to_wait = self.time_to_wait - statistics.mean(self.previous_iterations)
+
+        return time_to_wait
+
+    async def wait(self) -> None:
+        time_to_wait = self.compute_time_to_wait()
 
         logging.info(f"Waiting for {time_to_wait}")
         if time_to_wait > 0:

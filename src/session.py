@@ -12,11 +12,11 @@ class Role(StrEnum):
 
 class User(BaseModel):
     username: str
-    password: Optional[bytes] = None
+    password: Optional[str] = None
     role: str
 
 
-class Session(BaseModel):
+class IamSession(BaseModel):
     token: str
     user: User
     ip_address: str

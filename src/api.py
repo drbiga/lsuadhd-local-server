@@ -1,5 +1,7 @@
 import os
 
+import traceback
+
 import httpx
 
 import logging
@@ -26,6 +28,8 @@ def create_app() -> FastAPI:
     global current_worker_id
     current_worker_id = 0
 
+    tasks = []
+
     @app.get("/checkPA")
     async def check_pa() -> bool:
         async with httpx.AsyncClient() as client:
@@ -48,8 +52,14 @@ def create_app() -> FastAPI:
             # If the session is already running, we want to start
             # collecting feedback
             current_worker_id += 1
-            asyncio.ensure_future(worker(current_worker_id))
-            asyncio.ensure_future(chrome_comeback_worker(current_worker_id))
+            worker_task = asyncio.create_task(worker(current_worker_id))
+            browser_task = asyncio.create_task(
+                chrome_comeback_worker(current_worker_id)
+            )
+            tasks.append(worker_task)
+            tasks.append(browser_task)
+            worker_task.add_done_callback(lambda result: tasks.remove(worker_task))
+            browser_task.add_done_callback(lambda result: tasks.remove(browser_task))
         # At every new session that is set, we should stop
         # sending feedbacks in case we are sending them
 
@@ -70,8 +80,25 @@ def create_app() -> FastAPI:
         global current_worker_id, stop_collection
         stop_collection = False
         current_worker_id += 1
-        asyncio.ensure_future(chrome_comeback_worker(current_worker_id))
-        asyncio.ensure_future(worker(current_worker_id))
+        worker_task = asyncio.create_task(worker(current_worker_id))
+        browser_task = asyncio.create_task(chrome_comeback_worker(current_worker_id))
+        tasks.append(worker_task)
+        tasks.append(browser_task)
+
+        def worker_done(result=None):
+            logging.info(
+                "Worker task has finished and is being removed from the tasks array"
+            )
+            tasks.remove(worker_task)
+
+        def browser_done(result=None):
+            logging.info(
+                "Worker task has finished and is being removed from the tasks array"
+            )
+            tasks.remove(browser_task)
+
+        worker_task.add_done_callback(worker_done)
+        browser_task.add_done_callback(browser_done)
 
     @app.post("/stop_collection")
     async def stop_collecting():
@@ -131,22 +158,20 @@ def create_app() -> FastAPI:
 
     async def chrome_comeback_worker(wid: int):
         global current_worker_id, stop_collection
-        logging.info("Chrome comeback sob")
+        # logging.info("Chrome comeback sob")
         while current_worker_id == wid and not stop_collection:
-            logging.info("Chrome comeback sob")
+            # logging.info("Chrome comeback sob")
             await asyncio.sleep(1)
             if await connection.check_user_has_finished_homework():
-                logging.info("Checking if user has to return to survey ... Yes")
+                # logging.info("Checking if user has to return to survey ... Yes")
                 if os.getenv("ENV", None) == "test":
-                    webbrowser.open(
-                        "http://localhost:5173/?autoclose=true"
-                    )
+                    webbrowser.open("http://localhost:5173/?autoclose=true")
                 else:
                     frontend_url = os.getenv("FRONTEND_URL")
                     url = f"{frontend_url}?autoclose=true"
                     webbrowser.open(url)
                 break
-            logging.info("Checking if user has to return to survey ... No")
+            # logging.info("Checking if user has to return to survey ... No")
         logging.info("Chrome comeback worker finished")
 
     async def worker(wid: int):
@@ -169,8 +194,11 @@ def create_app() -> FastAPI:
             logging.info(json.dumps(feedback.model_dump()))
             try:
                 session_still_active = await connection.send_feedback(feedback)
-            except:
+            except Exception as e:
                 timing_service.finish_iteration()
+                logging.error(
+                    f"[ worker ] Error while sending feedback: {''.join(traceback.format_exc())}"
+                )
                 continue
             logging.info(f"Session is still active: {session_still_active}")
 

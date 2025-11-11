@@ -1,0 +1,11 @@
+[project]
+name = "lsuadhd-local-server"
+version = "0.1.0"
+description = "Manages feedback collection and upload"
+
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "./src",
+]

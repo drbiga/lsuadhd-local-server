@@ -1,12 +1,12 @@
 import os
-
+import traceback
 import logging
 
 import httpx
 import requests
 import json
 
-from session import Session, User
+from session import IamSession, User
 from feedback import Feedback
 
 
@@ -17,23 +17,35 @@ class HealthCheckError(Exception):
 
 class Connection:
     base_url: str
-    session: Session
+    session: IamSession
+
+    if os.getenv("env", "prod") == "prod":
+        TIMEOUT_SECONDS = 20
+    else:
+        TIMEOUT_SECONDS = 0.05
 
     def __init__(self) -> None:
         host = os.getenv("BACKEND_HOST")
         port = int(os.getenv("BACKEND_PORT"))
-        path_prefix = os.getenv("PATH_PREFIX")
+        path_prefix = os.getenv("PATH_PREFIX", "")
         self.base_url = f"http{'s' if port == 443 else ''}://{host}:{port}{path_prefix}"
-        try:
-            response = requests.get(f"{self.base_url}/health_check")
-        except requests.exceptions.ConnectionError:
-            raise HealthCheckError()
-        if response.status_code != 200 or response.json()["status"] != "ok":
-            raise HealthCheckError()
+        if os.getenv("env", "prod") == "prod":
+            try:
+                response = requests.get(f"{self.base_url}/health_check")
+            except requests.exceptions.ConnectionError:
+                raise HealthCheckError()
+            if response.status_code != 200 or response.json()["status"] != "ok":
+                raise HealthCheckError()
         self.session = None
 
-    def set_session(self, session: Session) -> None:
+    def set_session(self, session: IamSession) -> None:
         self.session = session
+
+    def get_session(self) -> IamSession:
+        return self.session
+
+    async def is_session_active(self) -> bool:
+        raise NotImplementedError("is_session_active is not implemented yet")
 
     async def connect(self) -> None:
         async with httpx.AsyncClient() as client:
@@ -52,23 +64,27 @@ class Connection:
         """Returns a flag if session is still active and false otherwise.
         This is used to control the state and know when to stop sending
         feedbacks to the backend"""
-        pa_feedback_str = json.dumps(feedback.personal_analytics_data.model_dump())
-
-        with open(feedback.screenshot, "rb") as screenshot_file:
-            logging.info("Sending feedback")
-            async with httpx.AsyncClient() as client:
-                try:
-                    response = await client.post(
-                        f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
-                        headers={"Authorization": f"Bearer {self.session.token}"},
-                        params={
-                            "pa_feedback_str": pa_feedback_str,
-                        },
-                        files={"screenshot_file": screenshot_file},
+        response = None
+        try:
+            pa_feedback_str = json.dumps(feedback.personal_analytics_data.model_dump())
+            with open(feedback.screenshot, "rb") as screenshot_file:
+                logging.info("Sending feedback")
+                async with httpx.AsyncClient(
+                    timeout=Connection.TIMEOUT_SECONDS
+                ) as client:
+                    response = await self._send_feedback(
+                        client, pa_feedback_str, screenshot_file
                     )
-                except Exception as e:
-                    logging.error("There was an error while sending the feedback")
-                    logging.error(str(e))
+        except httpx.TimeoutException:
+            raise TimeoutError()
+        except Exception as e:
+            logging.error("There was an error while sending the feedback")
+            logging.error(traceback.format_exc())
+
+        if response is None:
+            logging.error("[ Connection.send_feedback ] response was none")
+            return True
+
         logging.info("Feedback sent")
         try:
             logging.info(
@@ -87,6 +103,18 @@ class Connection:
                 return False
         return True
 
+    async def _send_feedback(
+        self, client: httpx.AsyncClient, pa_feedback_str: str, screenshot_file
+    ) -> httpx.Response:
+        return await client.post(
+            f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
+            headers={"Authorization": f"Bearer {self.session.token}"},
+            params={
+                "pa_feedback_str": pa_feedback_str,
+            },
+            files={"screenshot_file": screenshot_file},
+        )
+
     async def get_current_feedback(self) -> dict:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -96,6 +124,7 @@ class Connection:
             try:
                 return response.json()
             except:
+                logging.info("[ get_current_feedback ] returning none")
                 return None
 
     async def check_user_has_active_session(self) -> bool:
@@ -105,7 +134,7 @@ class Connection:
                 params={"student_name": self.session.user.username},
             )
             if response.status_code != 200:
-                logging.debug(
+                logging.info(
                     f"Received status code {response.status_code} in Connection.check_user_has_active_session()"
                 )
                 return False
@@ -124,7 +153,7 @@ class Connection:
                 params={"student_name": self.session.user.username},
             )
             if response.status_code != 200:
-                logging.debug(
+                logging.info(
                     f"Received status code {response.status_code} in Connection.check_user_has_finished_homework()"
                 )
                 return False
@@ -153,14 +182,14 @@ class Connection:
                     params={"student_name": student_name},
                 )
                 if response.status_code != 200:
-                    logging.debug(
+                    logging.info(
                         f"Received status code {response.status_code} in Connection.upload_tracking_user_input_batch()"
                     )
 
                 logging.info(f"Success when uploading tracking data: {response.json()}")
             except Exception as e:
-                logging.debug(e)
-                logging.debug("Error while uploading windows activity batch")
+                logging.info(e)
+                logging.info("Error while uploading windows activity batch")
 
     async def upload_tracking_windows_activity_batch(
         self, student_name: str, batch: list[dict]
@@ -174,12 +203,12 @@ class Connection:
                     params={"student_name": student_name},
                 )
                 if response.status_code != 200:
-                    logging.debug(
+                    logging.info(
                         f"Received status code {response.status_code} in Connection.upload_traupload_tracking_windows_activity_batchcking_user_input_batch()"
                     )
                 logging.info(
                     f"Success when uploading windows activity batch: {response.json()}"
                 )
             except Exception as e:
-                logging.debug(e)
-                logging.debug("Error while uploading tracking data")
+                logging.info(e)
+                logging.info("Error while uploading tracking data")

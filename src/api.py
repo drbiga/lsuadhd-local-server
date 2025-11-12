@@ -9,7 +9,7 @@ import json
 
 import asyncio
 from fastapi import FastAPI, status, HTTPException
-from session import Session
+from session import IamSession
 from connection import Connection
 from feedback import collect_feedback, clean
 from timing import TimingService
@@ -42,7 +42,7 @@ def create_app() -> FastAPI:
                 return False
 
     @app.post("/session")
-    async def set_session(session: Session) -> None:
+    async def set_session(session: IamSession) -> None:
         global stop_collection
         global current_worker_id
 
@@ -64,7 +64,7 @@ def create_app() -> FastAPI:
         # sending feedbacks in case we are sending them
 
     @app.get("/session")
-    async def get_session() -> Session:
+    async def get_session() -> IamSession:
         if connection.session is not None:
             return connection.session
         else:

@@ -11,7 +11,6 @@ from personal_analytics import get_feedback_personal_analytics
 from screenshot import take_screenshot
 
 
-
 class Feedback(BaseModel):
     """Feedback model will have two events in its lifecycle. First, it will be
     created with the available feedback data collected from students. Second, the
@@ -33,9 +32,8 @@ class PaFeedback(BaseModel):
     keyboardStrokes: int
 
 
-
-def collect_feedback() -> Feedback:
-    pa_feedback = get_feedback_personal_analytics()
+async def collect_feedback() -> Feedback:
+    pa_feedback = await get_feedback_personal_analytics()
     screenshot = take_screenshot()
     feedback = Feedback(
         personal_analytics_data=PaFeedback(
@@ -45,9 +43,10 @@ def collect_feedback() -> Feedback:
             mouseScrollDistance=pa_feedback.scrollDelta,
             isFocused=pa_feedback.isFocused,
         ),
-        screenshot=screenshot
+        screenshot=screenshot,
     )
     return feedback
+
 
 def clean(feedback: Feedback) -> None:
     os.remove(feedback.screenshot)

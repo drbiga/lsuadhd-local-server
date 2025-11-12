@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import sqlite3 as sql
 from datetime import datetime
+import httpx
 
 
 class PersonalAnalyticsData(BaseModel):
@@ -17,8 +18,10 @@ class PersonalAnalyticsData(BaseModel):
     scrollDelta: float
 
 
-def get_feedback_personal_analytics() -> PersonalAnalyticsData:
-    pa_data = requests.get("http://localhost:57827/intervention_status").json()
+async def get_feedback_personal_analytics() -> PersonalAnalyticsData:
+    async with httpx.AsyncClient() as client:
+        pa_data = await client.get("http://localhost:57827/intervention_status")
+        pa_data = pa_data.json()
     return PersonalAnalyticsData(**pa_data)
 
 

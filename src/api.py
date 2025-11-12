@@ -189,7 +189,15 @@ def create_app() -> FastAPI:
             # the whole loop execute once every minute
             timing_service.start_iteration()
 
-            feedback = collect_feedback()
+            try:
+                feedback = await collect_feedback()
+            except:
+                logging.error(
+                    "[ worker ] Error while collecting data from personal analytics"
+                )
+                timing_service.finish_iteration()
+                await asyncio.sleep(1)
+                continue
             logging.info("Sending feedback")
             logging.info(json.dumps(feedback.model_dump()))
             try:

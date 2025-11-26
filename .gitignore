@@ -1,9 +1,25 @@
-.env
 .venv/
+
 __pycache__/
+.pytest_cache/
+
 spawn/
+
+.vscode/
+build/
+dist/
+
+screenshots/
+
+.env*
+
+*.sqlite
 
 *.png
 *.jpg
 *.jpeg
 *.log
+
+.coverage
+htmlcov/
+

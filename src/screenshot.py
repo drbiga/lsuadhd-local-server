@@ -4,11 +4,25 @@ import mss
 import win32api
 from PIL import Image
 
-# Assume this is defined globally
-SCREENSHOT_DIR = "screenshots"
+from datetime import datetime
+
+from conf import ENV
 
 
 def take_screenshot():
+    env = os.getenv("ENV")
+    # Assume this is defined globally
+    if env == ENV.TEST:
+        SCREENSHOT_DIR = "test_screenshots"
+    elif env == ENV.PROD:
+        SCREENSHOT_DIR = "screenshots"
+    elif env == ENV.DEV:
+        SCREENSHOT_DIR = "dev_screenshots"
+    else:
+        raise ValueError(f"ENV environment variable is not set properly: {env}")
+    if not os.path.exists(SCREENSHOT_DIR):
+        os.mkdir(SCREENSHOT_DIR)
+
     with mss.mss() as sct:
         mouse_x, mouse_y = win32api.GetCursorPos()
 
@@ -25,7 +39,7 @@ def take_screenshot():
         monitor = sct.monitors[monitor_index]
         screenshot = sct.grab(monitor)
 
-        filename = f"{uuid.uuid4()}.png"
+        filename = f"{datetime.now().isoformat().replace(':', '-')}.png"
         filepath = os.path.join(SCREENSHOT_DIR, filename)
 
         img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)

@@ -14,11 +14,6 @@ import statistics
 OBSERVED_FEEDBACK_INGESTION_TIME = 14
 
 
-class State(IntEnum):
-    TRACKING_ITERATION = 1
-    NOT_TRACKING_ITERATION = 2
-
-
 class TimingService:
     # DEFAULT_TIME_TO_WAIT = 30 - OBSERVED_FEEDBACK_INGESTION_TIME
     MOVING_AVERAGE_SIZE = 10
@@ -28,28 +23,32 @@ class TimingService:
         DEFAULT_TIME_TO_WAIT = 0.1
 
     def __init__(self) -> None:
-        self.previous_iterations = []
+        self.previous_iterations: list[float] = []
         self.current_start_time = None
         self.current_finish_time = None
         self.current_elapsed_time = None
-        self.state = State.NOT_TRACKING_ITERATION
+        self.is_tracking_iteration = False
         self.time_to_wait = TimingService.DEFAULT_TIME_TO_WAIT
 
     def set_time(self, time_to_wait: int) -> None:
+        if time_to_wait < 0:
+            raise ValueError(
+                "[ TimingService.set_time ] Time to wait cannot be negative"
+            )
         self.time_to_wait = time_to_wait
 
     def start_iteration(self) -> None:
-        if self.state == State.TRACKING_ITERATION:
+        if self.is_tracking_iteration == True:
             logging.error(
                 "[ TimingService.start_iteration ] There is already an iteration being tracked"
             )
             raise RuntimeError("There is already an iteration being tracked")
 
         self.current_start_time = datetime.datetime.now()
-        self.state = State.TRACKING_ITERATION
+        self.is_tracking_iteration = True
 
     def finish_iteration(self) -> None:
-        if self.state == State.NOT_TRACKING_ITERATION:
+        if self.is_tracking_iteration == False:
             raise RuntimeError("There is not any iteration being tracked")
 
         self.current_finish_time = datetime.datetime.now()
@@ -66,7 +65,7 @@ class TimingService:
         self.current_elapsed_time = None
         self.current_start_time = None
         self.current_finish_time = None
-        self.state = State.NOT_TRACKING_ITERATION
+        self.is_tracking_iteration = False
 
     def compute_time_to_wait(self) -> float:
         if len(self.previous_iterations) < TimingService.MOVING_AVERAGE_SIZE:

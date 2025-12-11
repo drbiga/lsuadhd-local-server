@@ -19,6 +19,8 @@ class Feedback(BaseModel):
     event, this computation is being performed always over new data, meaning a new
     feedback is going to be computed."""
 
+    seqnum: int
+
     personal_analytics_data: PaFeedback
 
     screenshot: str

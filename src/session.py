@@ -20,3 +20,4 @@ class IamSession(BaseModel):
     token: str
     user: User
     ip_address: str
+    session_num: int

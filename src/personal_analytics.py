@@ -60,7 +60,10 @@ def get_base_dir() -> str:
         if os.path.exists(base_dir):
             return base_dir
 
-    raise Exception("Directory for personal analytics database does not exist")
+    # raise Exception("Directory for personal analytics database does not exist")
+    base_dir = base_dirs_list[0]
+    os.mkdir(base_dir)
+    return base_dir
 
 
 # def get_tracking_data() -> Tuple[List[UserInput], List[WindowsActivity]]:

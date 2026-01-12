@@ -6,6 +6,8 @@ import logging
 
 import json
 
+import asyncio
+
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
@@ -78,6 +80,7 @@ class SessionService:
             if response.status_code != 200 or response.json()["status"] != "ok":
                 raise HealthCheckError()
         self.iam_session = None
+        self.get_remaining_sessions_seqnum_task = None
 
     async def get_session_progress(self) -> SessionProgress:
         """Get the session progress for the current authenticated student.
@@ -147,6 +150,15 @@ class SessionService:
 
     def set_iam_session(self, iam_session: IamSession) -> None:
         self.iam_session = iam_session
+        self.get_remaining_sessions_seqnum_task = asyncio.create_task(
+            self.get_remaining_sessions_seqnum()
+        )
+
+        def callback(task: asyncio.Task):
+            result = task.result()
+            self.iam_session.session_num = sorted(result)[0]
+
+        self.get_remaining_sessions_seqnum_task.add_done_callback(callback)
 
     async def is_session_active(self) -> bool:
         try:
@@ -183,16 +195,33 @@ class SessionService:
                 )
         return response.json()
 
+    async def get_remaining_sessions_seqnum(self) -> list[int]:
+        async with httpx.AsyncClient(timeout=SessionService.TIMEOUT_SECONDS) as client:
+            response = await client.get(
+                f"{self.base_url}/student/{self.iam_session.user.username}/remaining_sessions",
+                headers={"Authorization": f"Bearer {self.iam_session.token}"},
+            )
+            session_list = response.json()
 
-class IamService:
-    def __init__(self):
-        self._iam_session: IamSession | None = None
+        return [s["seqnum"] for s in session_list]
 
-    def set_iam_session(self, s: IamSession) -> None:
-        if s is None:
-            raise ValueError("[ IamService.set_iam_session ] IamSession cannot be none")
 
-        self._iam_session = s
+# class IamService:
+#     def __init__(self):
+#         self._iam_session: IamSession | None = None
 
-    def get_iam_session(self) -> IamSession:
-        return self._iam_session
+#     def set_iam_session(self, s: IamSession) -> None:
+#         if s is None:
+#             raise ValueError("[ IamService.set_iam_session ] IamSession cannot be none")
+
+#         self._iam_session = s
+
+#     def get_iam_session(self) -> IamSession:
+#         return self._iam_session
+
+#     def set_session_num(self, session_num: int) -> None:
+#         if self._iam_session is None:
+#             raise RuntimeError(
+#                 "[ IamService.set_session_num ] IamSession was not set yet"
+#             )
+#         self._iam_session.session_num = session_num

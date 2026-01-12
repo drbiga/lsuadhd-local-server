@@ -47,6 +47,11 @@ class FeedbackRepository:
         if not self.table_was_created:
             await self.create_table_if_not_exists()
 
+        if session.session_num is None:
+            raise RuntimeError(
+                "[ FeedbackRepository.insert_new ] Session num was not yet set"
+            )
+
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """

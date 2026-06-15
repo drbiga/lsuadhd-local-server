@@ -9,11 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
 
-from feedback import collect_feedback
 from api import create_app
 from personal_analytics import get_base_dir
 from feedback_repository import FeedbackRepository
-from connection import Connection
 
 from feedback_colletor import FeedbackColletor
 from services import SessionService, IamService
@@ -22,11 +20,11 @@ from timing import TimingService
 
 
 def main():
-    load_dotenv(dotenv_path=".env")
+    load_dotenv(dotenv_path="../.env")
 
     env = os.getenv("ENV")
 
-    if env == "dev":
+    if env == "DEV":
         os.remove("info.log")
 
     logging.basicConfig(
@@ -38,7 +36,7 @@ def main():
     logging.info("=" * 80)
     logging.info("Starting new execution")
 
-    if env == "dev":
+    if env == "DEV":
         logging.info("Environment set to development")
     else:
         logging.info("Environment set to production")

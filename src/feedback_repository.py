@@ -39,9 +39,11 @@ class FeedbackRepository:
                 """
             )
             await db.commit()
-            logging.info(
-                "[ FeedbackRepository.create_table_if_not_exists ] Feedbacks table was created"
-            )
+            if not self.table_was_created:
+                logging.info(
+                    "[ FeedbackRepository.create_table_if_not_exists ] Feedbacks table was created"
+                )
+                self.table_was_created = True
 
     async def insert_new(self, feedback: Feedback, session: IamSession) -> None:
         if not self.table_was_created:

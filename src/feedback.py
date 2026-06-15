@@ -25,30 +25,12 @@ class Feedback(BaseModel):
 
     screenshot: str
 
-
 class PaFeedback(BaseModel):
     isFocused: int
     numMouseClicks: int
     mouseScrollDistance: float
     mouseMoveDistance: float
     keyboardStrokes: int
-
-
-async def collect_feedback() -> Feedback:
-    pa_feedback = await get_feedback_personal_analytics()
-    screenshot = take_screenshot()
-    feedback = Feedback(
-        personal_analytics_data=PaFeedback(
-            numMouseClicks=pa_feedback.clickTotal,
-            keyboardStrokes=pa_feedback.keyTotal,
-            mouseMoveDistance=pa_feedback.movedDistance,
-            mouseScrollDistance=pa_feedback.scrollDelta,
-            isFocused=pa_feedback.isFocused,
-        ),
-        screenshot=screenshot,
-    )
-    return feedback
-
 
 def clean(feedback: Feedback) -> None:
     os.remove(feedback.screenshot)

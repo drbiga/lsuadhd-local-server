@@ -1,6 +1,7 @@
 import os
 import requests
 import httpx
+import traceback
 
 import logging
 
@@ -19,7 +20,6 @@ class HealthCheckError(Exception):
     def __init__(self) -> None:
         super().__init__("Health Check Error. Could not connect to the server")
 
-
 class SessionProgress(BaseModel):
     stage: str
     remaining_time: int
@@ -30,7 +30,6 @@ class SessionProgress(BaseModel):
         if self.stage.lower() in ["survey", "finished"]:
             return True
         return False
-
 
 class SessionService:
     TIMEOUT_SECONDS = 15
@@ -81,6 +80,15 @@ class SessionService:
                 raise HealthCheckError()
         self.iam_session = None
         self.get_remaining_sessions_seqnum_task = None
+        self.host = host
+        self.port = port
+
+    def get_websocket_url(self) -> str:
+        if self.iam_session is None:
+            raise RuntimeError("IamSession is none")
+        
+        ws_scheme = "wss" if self.port == 443 else "ws"
+        return f"{ws_scheme}://{self.host}:{self.port}{os.getenv('PATH_PREFIX')}/session_execution/student/{self.iam_session.user.username}/session/observer?token={self.iam_session.token}"
 
     async def get_session_progress(self) -> SessionProgress:
         """Get the session progress for the current authenticated student.
@@ -106,7 +114,13 @@ class SessionService:
             )
         async with httpx.AsyncClient() as client:
             progress = await client.get(
-                f"/student/{self.iam_session.user.username}/session"
+                f"{self.base_url}/session_execution/student/{self.iam_session.user.username}/session",
+                headers={"Authorization": f"Bearer {self.iam_session.token}"}
+            )
+
+        if progress.status_code != 200:
+            raise RuntimeError(
+                f"[ Backend.get_session_progress ] Backend returned {progress.status_code}"
             )
 
         if progress is None:
@@ -120,6 +134,7 @@ class SessionService:
             )
 
         if "status" in progress and progress["status"] == "err":
+            logging.error(f"[ Backend.get_session_progress ] Backend returned error: {progress}")
             if (
                 progress["message"]
                 == SessionService.SESSION_PROGRESS_ERR_NO_ACTIVE_SESSION
@@ -134,7 +149,7 @@ class SessionService:
                     "[ Backend.get_session_progress ] Unauthorized error"
                 )
             else:
-                raise RuntimeError("[ Backend.get_session_progress ] Unknown exception")
+                raise RuntimeError(f"[ Backend.get_session_progress ] Unknown exception: {progress.get('message', 'no message')}")
 
         try:
             session_progress = SessionProgress(**progress)
@@ -155,8 +170,14 @@ class SessionService:
         )
 
         def callback(task: asyncio.Task):
-            result = task.result()
-            self.iam_session.session_num = sorted(result)[0]
+            try:
+                result = task.result()
+                if result:
+                    self.iam_session.session_num = sorted(result)[0]
+                else:
+                    logging.warning("[ SessionService.set_iam_session ] No remaining sessions found")
+            except Exception as e:
+                logging.error(f"[ SessionService.set_iam_session ] Callback error: {e}")
 
         self.get_remaining_sessions_seqnum_task.add_done_callback(callback)
 
@@ -177,51 +198,92 @@ class SessionService:
 
         return True
 
-    async def ingest_feedback(self, feedback: Feedback) -> Feedback:
-        with open(feedback.screenshot, "rb") as screenshot_file:
-            logging.info("Sending feedback")
-            async with httpx.AsyncClient(
-                timeout=SessionService.TIMEOUT_SECONDS
-            ) as client:
-                response = await client.post(
-                    f"{self.base_url}/session_execution/student/{self.iam_session.user.username}/session/feedback",
-                    headers={"Authorization": f"Bearer {self.iam_session.token}"},
-                    params={
-                        "pa_feedback_str": json.dumps(
-                            feedback.personal_analytics_data.model_dump()
-                        ),
-                    },
-                    files={"screenshot_file": screenshot_file},
-                )
-        return response.json()
+    async def ingest_feedback(self, feedback: Feedback) -> bool:
+        response = None
+        try:
+            with open(feedback.screenshot, "rb") as screenshot_file:
+                logging.info("Sending feedback")
+                async with httpx.AsyncClient(
+                    timeout=SessionService.TIMEOUT_SECONDS
+                ) as client:
+                    http_response = await client.post(
+                        f"{self.base_url}/session_execution/student/{self.iam_session.user.username}/session/feedback",
+                        headers={"Authorization": f"Bearer {self.iam_session.token}"},
+                        params={
+                            "pa_feedback_str": json.dumps(
+                                feedback.personal_analytics_data.model_dump()
+                            ),
+                        },
+                        files={"screenshot_file": screenshot_file},
+                    )
+                response = http_response.json()
+        except httpx.TimeoutException:
+            raise TimeoutError()
+        except json.JSONDecodeError:
+            logging.error(
+                "[ SessionService.ingest_feedback ] Error while trying to decode (json) the response from the server"
+            )
+        except Exception as e:
+            logging.error(
+                "[ SessionService.ingest_feedback ] There was an error while sending the feedback"
+            )
+            logging.error(traceback.format_exc())
+
+        if response is None:
+            logging.error("[ SessionService.ingest_feedback ] response was none")
+            return True
+
+        logging.info("[ SessionService.ingest_feedback ] Feedback sent")
+        logging.info(f"[ SessionService.ingest_feedback ] Server response: {response}")
+
+        # errcode 1 = STUDENT_DOES_NOT_HAVE_ACTIVE_SESSION (session ended)
+        if "detail" in response and response["detail"].get("errcode") == 1:
+            return False
+        return True
 
     async def get_remaining_sessions_seqnum(self) -> list[int]:
         async with httpx.AsyncClient(timeout=SessionService.TIMEOUT_SECONDS) as client:
             response = await client.get(
-                f"{self.base_url}/student/{self.iam_session.user.username}/remaining_sessions",
+                f"{self.base_url}/session_execution/student/{self.iam_session.user.username}/remaining_sessions",
                 headers={"Authorization": f"Bearer {self.iam_session.token}"},
             )
-            session_list = response.json()
 
-        return [s["seqnum"] for s in session_list]
+            # Check for HTTP error status
+            if response.status_code != 200:
+                logging.error(f"[ SessionService.get_remaining_sessions_seqnum ] HTTP {response.status_code}: {response.text}")
+                return []
+
+            try:
+                session_list = response.json()
+            except json.JSONDecodeError:
+                logging.error("[ SessionService.get_remaining_sessions_seqnum ] Invalid JSON in response")
+                return []
+
+            if not isinstance(session_list, list):
+                logging.error(f"[ SessionService.get_remaining_sessions_seqnum ] Unexpected response: {session_list}")
+                return []
+
+            return [s["seqnum"] for s in session_list]
 
 
-# class IamService:
-#     def __init__(self):
-#         self._iam_session: IamSession | None = None
+class IamService:
+    def __init__(self):
+        self._iam_session: IamSession | None = None
 
-#     def set_iam_session(self, s: IamSession) -> None:
-#         if s is None:
-#             raise ValueError("[ IamService.set_iam_session ] IamSession cannot be none")
+    def set_iam_session(self, s: IamSession) -> None:
+        if s is None:
+            raise ValueError("[ IamService.set_iam_session ] IamSession cannot be none")
 
-#         self._iam_session = s
+        self._iam_session = s
 
-#     def get_iam_session(self) -> IamSession:
-#         return self._iam_session
+        logging.info(f"Session set: {self._iam_session}")
 
-#     def set_session_num(self, session_num: int) -> None:
-#         if self._iam_session is None:
-#             raise RuntimeError(
-#                 "[ IamService.set_session_num ] IamSession was not set yet"
-#             )
-#         self._iam_session.session_num = session_num
+    def get_iam_session(self) -> IamSession:
+        return self._iam_session
+
+    def set_session_num(self, session_num: int) -> None:
+        if self._iam_session is None:
+            raise RuntimeError(
+                "[ IamService.set_session_num ] IamSession was not set yet"
+            )
+        self._iam_session.session_num = session_num

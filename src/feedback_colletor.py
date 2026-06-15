@@ -72,20 +72,23 @@ class FeedbackColletor:
         """
         async with self.lock_worker_is_running:
             if self.worker_is_running:
-                raise RuntimeError()
+                logging.info("[ FeedbackColletor ] Worker already running")
+                return
             self.worker_is_running = True
 
         # Pre-condition checks
         if self.iam_service.get_iam_session() is None:
-            raise AttributeError(
-                "The session object must be set in the backend in order to start feedback collection"
-            )
+            logging.error("[ FeedbackColletor ] IamSession is not set, cannot start collection")
+            async with self.lock_worker_is_running:
+                self.worker_is_running = False
+            return
 
         session_still_active = await self.session_service.is_session_active()
         if not session_still_active:
-            raise RuntimeError(
-                "A session must be active in order to start feedback collection"
-            )
+            logging.error("[ FeedbackColletor ] No active session, cannot start collection")
+            async with self.lock_worker_is_running:
+                self.worker_is_running = False
+            return
 
         logging.info("Starting worker...")
         while session_still_active:
@@ -142,7 +145,7 @@ class FeedbackColletor:
             self.worker_is_running = False
 
         logging.info(
-            "Session worker exited. Initiating personal analytics database dump"
+            "Session worker exited."
         )
 
     async def _collect_feedback_data(self) -> Feedback:

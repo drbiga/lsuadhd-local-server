@@ -23,3 +23,4 @@ screenshots/
 .coverage
 htmlcov/
 
+feedback.db

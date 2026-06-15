@@ -19,7 +19,7 @@ class Connection:
     base_url: str
     session: IamSession | None
 
-    if os.getenv("env", "prod") == "prod":
+    if os.getenv("ENV", "PROD") == "PROD":
         TIMEOUT_SECONDS = 20
     else:
         TIMEOUT_SECONDS = 0.05
@@ -29,7 +29,7 @@ class Connection:
         port = int(os.getenv("BACKEND_PORT"))
         path_prefix = os.getenv("PATH_PREFIX", "")
         self.base_url = f"http{'s' if port == 443 else ''}://{host}:{port}{path_prefix}"
-        if os.getenv("env", "prod") == "prod":
+        if os.getenv("ENV", "PROD") == "PROD":
             try:
                 response = requests.get(f"{self.base_url}/health_check")
             except requests.exceptions.ConnectionError:

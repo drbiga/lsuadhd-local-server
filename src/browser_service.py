@@ -1,13 +1,12 @@
 import os
-
 import logging
-
 import asyncio
 from asyncio import Lock
-
 import webbrowser
+import websockets
+import json
 
-from services import SessionService
+from services import SessionService, SessionProgress
 
 
 class BrowserService:
@@ -37,33 +36,31 @@ class BrowserService:
         Post-conditions
         - The browser was opened
         """
+        logging.info("[ BrowserService ] Browser worker started")
         async with self.lock:
             if self.is_running:
-                raise RuntimeError(
-                    "[ BrowserService.start_browser_worker ] The worker has already started"
-                )
+                logging.info("[ BrowserService ] Already running, skipping")
+                return
             self.is_running = True
 
-        session_progress = await self.session_service.get_session_progress()
-
-        while not session_progress.has_finished_homework():
-            await asyncio.sleep(1)
-            session_progress = await self.session_service.get_session_progress()
-
-        if self.env == "dev":
-            webbrowser.open("http://localhost:5173/?autoclose=true")
-        elif self.env == "prod":
-            url = f"{self.frontend_url}?autoclose=true"
-            webbrowser.open(url)
-
-        async with self.lock:
-            if not self.is_running:
-                logging.error(
-                    "[ BrowserService ] Something changed the state of is_running improperly"
-                )
-                raise RuntimeError(
-                    "[ BrowserService ] Something changed the state of is_running improperly"
-                )
-            self.is_running = False
-
-        logging.info("Chrome comeback worker finished")
+        ws_url = self.session_service.get_websocket_url()
+        try:
+            while True:
+                try:
+                    async with websockets.connect(ws_url) as ws:
+                        logging.info(f"[ BrowserService ] WebSocket connected: {ws_url}")
+                        async for msg in ws:
+                            progress = SessionProgress(**json.loads(msg))
+                            if progress.has_finished_homework():
+                                if self.env == "DEV":
+                                    webbrowser.open("http://localhost:5173/?autoclose=true")
+                                elif self.env == "PROD":
+                                    webbrowser.open(f"{self.frontend_url}?autoclose=true")
+                                return
+                except Exception as e:
+                    logging.warning(f"[ BrowserService ] WebSocket error/disconnect: {e}")
+                    await asyncio.sleep(2) # retry websocket connection repeatedly every 2 sec if failed
+        finally:
+            async with self.lock:
+                self.is_running = False
+                logging.info("[ BrowserService ] Chrome comeback worker finished")

@@ -17,7 +17,7 @@ OBSERVED_FEEDBACK_INGESTION_TIME = 14
 class TimingService:
     # DEFAULT_TIME_TO_WAIT = 30 - OBSERVED_FEEDBACK_INGESTION_TIME
     MOVING_AVERAGE_SIZE = 10
-    if os.getenv("ENV", "prod") == "prod":
+    if os.getenv("ENV", "PROD") == "PROD":
         DEFAULT_TIME_TO_WAIT = 30
     else:
         DEFAULT_TIME_TO_WAIT = 0.1

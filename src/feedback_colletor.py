@@ -109,7 +109,18 @@ class FeedbackColletor:
             # the whole loop execute once every minute
             self.timing_service.start_iteration()
 
-            feedback = await self._collect_feedback_data()
+            try:
+                feedback = await self._collect_feedback_data()
+            except Exception:
+                # Personal Analytics or the screenshot grab failed 
+                # (for insance, the PA app is not running).
+                logging.error(
+                    "[ FeedbackColletor ] Error collecting feedback data (PA/screenshot): "
+                    + traceback.format_exc()
+                )
+                self.timing_service.finish_iteration()
+                await asyncio.sleep(1)
+                continue
 
             logging.info("Sending feedback")
             logging.info(json.dumps(feedback.model_dump()))

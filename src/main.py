@@ -24,7 +24,7 @@ def main():
 
     env = os.getenv("ENV")
 
-    if env == "DEV":
+    if env == "TEST" and os.path.exists("info.log"):
         os.remove("info.log")
 
     logging.basicConfig(
@@ -36,8 +36,8 @@ def main():
     logging.info("=" * 80)
     logging.info("Starting new execution")
 
-    if env == "DEV":
-        logging.info("Environment set to development")
+    if env == "TEST":
+        logging.info("Environment set to development/testing")
     else:
         logging.info("Environment set to production")
 

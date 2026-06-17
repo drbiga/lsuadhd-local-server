@@ -24,16 +24,14 @@ def create_app(
     tasks = []
 
     @app.get("/checkPA")
-    async def check_pa() -> dict:
+    async def check_pa() -> bool:
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    "http://localhost:57827/intervention_status"
-                )
-            return {"status": "success", "active": True}
+                await client.get("http://localhost:57827/intervention_status")
+            return True
         except Exception as e:
-            logging.error(f"[checkPA] Exception: {e}")
-            return {"status": "error", "active": False, "message": str(e)}
+            logging.error(f"[checkPA] Personal Analytics not reachable: {e}")
+            return False
 
     @app.post("/session")
     async def set_session(session: IamSession):

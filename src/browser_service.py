@@ -52,7 +52,7 @@ class BrowserService:
                         async for msg in ws:
                             progress = SessionProgress(**json.loads(msg))
                             if progress.has_finished_homework():
-                                if self.env == "DEV":
+                                if self.env == "TEST":
                                     webbrowser.open("http://localhost:5173/?autoclose=true")
                                 elif self.env == "PROD":
                                     webbrowser.open(f"{self.frontend_url}?autoclose=true")

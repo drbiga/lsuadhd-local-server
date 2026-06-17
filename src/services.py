@@ -62,9 +62,9 @@ class SessionService:
             raise ValueError("[ SessionService.__init__ ] Path prefix cannot be None")
         if env is None:
             raise ValueError("[ SessionService.__init__ ] Env cannot be None")
-        if env not in ["DEV", "TEST", "PROD"]:
+        if env not in ["TEST", "PROD"]:
             raise ValueError(
-                "[ SessionService.__init__ ] Env has to one of DEV, TEST, or PROD"
+                "[ SessionService.__init__ ] Env has to be one of TEST or PROD"
             )
 
         port = int(port_str)

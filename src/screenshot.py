@@ -1,5 +1,4 @@
 import os
-import uuid
 import mss
 import win32api
 from PIL import Image
@@ -16,8 +15,6 @@ def take_screenshot():
         SCREENSHOT_DIR = "test_screenshots"
     elif env == ENV.PROD:
         SCREENSHOT_DIR = "screenshots"
-    elif env == ENV.DEV:
-        SCREENSHOT_DIR = "dev_screenshots"
     else:
         raise ValueError(f"ENV environment variable is not set properly: {env}")
     if not os.path.exists(SCREENSHOT_DIR):
@@ -39,7 +36,11 @@ def take_screenshot():
         monitor = sct.monitors[monitor_index]
         screenshot = sct.grab(monitor)
 
-        filename = f"{datetime.now().isoformat().replace(':', '-')}.png"
+        # Human-readable, sortable name like 2026-06-16_22-06-45-060.png 
+        # format: date_time-milliseconds
+        now = datetime.now()
+        milliseconds = now.microsecond // 1000
+        filename = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}-{milliseconds:03d}.png"
         filepath = os.path.join(SCREENSHOT_DIR, filename)
 
         img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)

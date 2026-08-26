@@ -12,16 +12,18 @@ from fastapi import FastAPI, status, HTTPException
 
 from session import IamSession
 
-from feedback_colletor import FeedbackColletor
+from feedback_collector import FeedbackCollector
 from browser_service import BrowserService
+from reconcile import reconcile_pending_feedbacks, count_pending_feedbacks
 
 
 def create_app(
-    feedback_collector: FeedbackColletor,
+    feedback_collector: FeedbackCollector,
     browser_service: BrowserService,
 ) -> FastAPI:
     app = FastAPI()
     tasks = []
+    reconcile_lock = asyncio.Lock()
 
     @app.get("/checkPA")
     async def check_pa() -> bool:
@@ -105,5 +107,40 @@ def create_app(
         except Exception as e:
             logging.error(f"[stop_collecting] Exception: {e}\n{traceback.format_exc()}")
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, {"status": "error", "message": str(e)})
+
+    @app.get("/reconcile/pending")
+    async def reconcile_pending():
+        # Check how many locally-saved feedbacks never made it to the cloud
+        iam_session = feedback_collector.iam_service.get_iam_session()
+        if iam_session is None:
+            raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, {"status": "error", "message": "No session set"})
+        try:
+            pending = await count_pending_feedbacks(
+                feedback_collector.session_service,
+                feedback_collector.repository,
+                iam_session,
+            )
+            return {"pending": pending}
+        except Exception as e:
+            logging.error(f"[reconcile_pending] Exception: {e}\n{traceback.format_exc()}")
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, {"status": "error", "message": str(e)})
+
+    @app.post("/reconcile")
+    async def reconcile():
+        # Restore every locally-saved feedback the cloud is missing, then replay each affected session
+        iam_session = feedback_collector.iam_service.get_iam_session()
+        if iam_session is None:
+            raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, {"status": "error", "message": "No session set"})
+        async with reconcile_lock:
+            try:
+                summary = await reconcile_pending_feedbacks(
+                    feedback_collector.session_service,
+                    feedback_collector.repository,
+                    iam_session,
+                )
+                return {"status": "success", **summary}
+            except Exception as e:
+                logging.error(f"[reconcile] Exception: {e}\n{traceback.format_exc()}")
+                raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, {"status": "error", "message": str(e)})
 
     return app

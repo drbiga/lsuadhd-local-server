@@ -13,7 +13,7 @@ from api import create_app
 from personal_analytics import get_base_dir
 from feedback_repository import FeedbackRepository
 
-from feedback_colletor import FeedbackColletor
+from feedback_collector import FeedbackCollector
 from services import SessionService, IamService
 from browser_service import BrowserService
 from timing import TimingService
@@ -50,7 +50,7 @@ def main():
     session_service = SessionService()
     iam_service = IamService()
     app = create_app(
-        FeedbackColletor(
+        FeedbackCollector(
             session_service, iam_service, FeedbackRepository(), TimingService()
         ),
         BrowserService(session_service),

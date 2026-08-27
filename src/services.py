@@ -33,6 +33,10 @@ class SessionProgress(BaseModel):
 
 class SessionService:
     TIMEOUT_SECONDS = 15
+    # Each finalize call is ONE bounded batch (a handful of OCRs), so it returns in well under a
+    # minute. We allow a bit above the backend's reverse-proxy timeout (~60s) so we still receive
+    # the response (or its 504) instead of hanging. Idempotent, so a timed-out call is safe to retry.
+    FINALIZE_TIMEOUT_SECONDS = 120
 
     # Session Progress errors
     SESSION_PROGRESS_ERR_NO_ACTIVE_SESSION = "You do not have an active session yet"
@@ -213,6 +217,7 @@ class SessionService:
                             "pa_feedback_str": json.dumps(
                                 feedback.personal_analytics_data.model_dump()
                             ),
+                            "feedback_id": feedback.seqnum,
                         },
                         files={"screenshot_file": screenshot_file},
                     )
@@ -264,6 +269,84 @@ class SessionService:
                 return []
 
             return [s["seqnum"] for s in session_list]
+
+    async def get_cloud_feedback_ids(
+        self, student_name: str, session_seqnum: int
+    ) -> list[int]:
+        """
+        To perform feedback sync (locally collected data wasn't sent to the backend), 
+        we need to check with the backend to see which feedback ids it already
+        has fully processed (with a computed label) for a given session. An id the laptop has
+        but the backend doesn't report still needs syncing.
+        """
+        async with httpx.AsyncClient(timeout=SessionService.TIMEOUT_SECONDS) as client:
+            response = await client.get(
+                f"{self.base_url}/session_execution/student/{student_name}/session/{session_seqnum}/feedback_ids",
+                headers={"Authorization": f"Bearer {self.iam_session.token}"},
+            )
+
+        if response.status_code != 200:
+            logging.error(
+                f"[ SessionService.get_cloud_feedback_ids ] HTTP {response.status_code}: {response.text}"
+            )
+            return []
+
+        ids = response.json()
+        return ids if isinstance(ids, list) else []
+
+    async def store_feedback(
+        self, student_name: str, session_seqnum: int, local_row: dict
+    ) -> str:
+        """
+        Sync phase 1: quickly push one locally-saved feedback (PA + screenshot) to the cloud
+        for storage. Returns the backend's status ('stored' or 'already_present'). 
+        Raises if the upload/store itself fails (e.g. the local screenshot file is gone -> FileNotFoundError).
+        """
+        pa_feedback = {
+            # Note: isFocused code (1/2/3) -> FOCUSED, NORMAL, DISTRACTED
+            "isFocused": local_row["is_focused"],
+            "numMouseClicks": local_row["num_mouse_clicks"],
+            "mouseScrollDistance": local_row["mouse_scroll_distance"],
+            "mouseMoveDistance": local_row["mouse_move_distance"],
+            "keyboardStrokes": local_row["num_keyboard_strokes"],
+        }
+        with open(local_row["screenshot"], "rb") as screenshot_file:
+            async with httpx.AsyncClient(
+                timeout=SessionService.TIMEOUT_SECONDS
+            ) as client:
+                response = await client.post(
+                    f"{self.base_url}/session_execution/student/{student_name}/session/{session_seqnum}/feedback/store",
+                    headers={"Authorization": f"Bearer {self.iam_session.token}"},
+                    params={
+                        "pa_feedback_str": json.dumps(pa_feedback),
+                        "feedback_id": local_row["id"],
+                        "created_at": local_row["created_at"],
+                    },
+                    files={"screenshot_file": screenshot_file},
+                )
+        response.raise_for_status()
+        return response.json().get("status", "stored")
+
+    async def finalize_session(
+        self, student_name: str, session_seqnum: int, limit: int | None = None
+    ) -> dict:
+        """
+        Sync phase 2: ask the backend to label (OCR + replay) up to limit not-yet-labeled feedbacks 
+        and return {"total", "pending", "processed"}
+        """
+        params = {}
+        if limit is not None:
+            params["limit"] = limit
+        async with httpx.AsyncClient(
+            timeout=SessionService.FINALIZE_TIMEOUT_SECONDS
+        ) as client:
+            response = await client.post(
+                f"{self.base_url}/session_execution/student/{student_name}/session/{session_seqnum}/finalize",
+                headers={"Authorization": f"Bearer {self.iam_session.token}"},
+                params=params,
+            )
+        response.raise_for_status()
+        return response.json()
 
 
 class IamService:

@@ -42,10 +42,15 @@ def main():
     else:
         logging.info("Environment set to production")
 
+    # vvvvvvvvvvvvvvvvvvvvvvvv DO NOT EDIT: START vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    # Begins the auto-updater upon startup. Removing or reordering this block
+    # stops deployed laptops from auto-updating and each one must then
+    # be fixed by hand.
     # Upon startup run auto-update to latest github release
     from updater import self_update_if_needed
     if self_update_if_needed():
         sys.exit(0)
+    # ^^^^^^^^^^^^^^^^^^^^^^^^^ DO NOT EDIT: END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     pa_base_dir = get_base_dir()
     logging.info(f"Base personal analytics path is {pa_base_dir}")

@@ -1,4 +1,5 @@
 import os
+import signal
 
 import httpx
 
@@ -15,6 +16,7 @@ from session import IamSession
 from feedback_collector import FeedbackCollector
 from browser_service import BrowserService
 from reconcile import reconcile_pending_feedbacks, count_pending_feedbacks
+from updater import is_stale, current_build_id
 
 
 def create_app(
@@ -24,6 +26,22 @@ def create_app(
     app = FastAPI()
     tasks = []
     reconcile_lock = asyncio.Lock()
+
+    @app.get("/version")
+    async def get_version() -> dict:
+        return {"version": current_build_id()}
+
+    @app.post("/ensure_updated")
+    async def ensure_updated() -> dict:
+        # main.exe self-updates on startup. This is an extra edge case "safety net"
+        # so if a new release was published while this build is running, shut down
+        # so the user has to relaunch for the update.
+        if is_stale():
+            asyncio.get_event_loop().call_later(
+                0.5, os.kill, os.getpid(), signal.SIGINT
+            )
+            return {"status": "out_of_date"}
+        return {"status": "current"}
 
     @app.get("/checkPA")
     async def check_pa() -> bool:
@@ -142,5 +160,12 @@ def create_app(
             except Exception as e:
                 logging.error(f"[reconcile] Exception: {e}\n{traceback.format_exc()}")
                 raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, {"status": "error", "message": str(e)})
+
+    @app.post("/shutdown")
+    async def shutdown():
+        # Respond first, then stop shortly after so the response above
+        # actually finishes sending before the process exits.
+        asyncio.get_event_loop().call_later(0.5, os.kill, os.getpid(), signal.SIGINT)
+        return {"status": "success", "message": "Shutting down"}
 
     return app

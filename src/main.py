@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sys
 
 import logging
 
@@ -20,7 +21,7 @@ from timing import TimingService
 
 
 def main():
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path=".env")
 
     env = os.getenv("ENV")
 
@@ -40,6 +41,11 @@ def main():
         logging.info("Environment set to development/testing")
     else:
         logging.info("Environment set to production")
+
+    # Upon startup run auto-update to latest github release
+    from updater import self_update_if_needed
+    if self_update_if_needed():
+        sys.exit(0)
 
     pa_base_dir = get_base_dir()
     logging.info(f"Base personal analytics path is {pa_base_dir}")

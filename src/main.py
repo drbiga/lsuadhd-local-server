@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sys
 
 import logging
 
@@ -13,14 +14,14 @@ from api import create_app
 from personal_analytics import get_base_dir
 from feedback_repository import FeedbackRepository
 
-from feedback_colletor import FeedbackColletor
+from feedback_collector import FeedbackCollector
 from services import SessionService, IamService
 from browser_service import BrowserService
 from timing import TimingService
 
 
 def main():
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path=".env")
 
     env = os.getenv("ENV")
 
@@ -41,6 +42,11 @@ def main():
     else:
         logging.info("Environment set to production")
 
+    # Upon startup run auto-update to latest github release
+    from updater import self_update_if_needed
+    if self_update_if_needed():
+        sys.exit(0)
+
     pa_base_dir = get_base_dir()
     logging.info(f"Base personal analytics path is {pa_base_dir}")
 
@@ -50,7 +56,7 @@ def main():
     session_service = SessionService()
     iam_service = IamService()
     app = create_app(
-        FeedbackColletor(
+        FeedbackCollector(
             session_service, iam_service, FeedbackRepository(), TimingService()
         ),
         BrowserService(session_service),

@@ -16,7 +16,7 @@ from timing import TimingService
 from services import SessionService, IamService
 
 
-class FeedbackColletor:
+class FeedbackCollector:
     """This class will take care of collecting the feedback data from the laptop,
     including both personal analytics and screenshots."""
 
@@ -72,20 +72,20 @@ class FeedbackColletor:
         """
         async with self.lock_worker_is_running:
             if self.worker_is_running:
-                logging.info("[ FeedbackColletor ] Worker already running")
+                logging.info("[ FeedbackCollector ] Worker already running")
                 return
             self.worker_is_running = True
 
         # Pre-condition checks
         if self.iam_service.get_iam_session() is None:
-            logging.error("[ FeedbackColletor ] IamSession is not set, cannot start collection")
+            logging.error("[ FeedbackCollector ] IamSession is not set, cannot start collection")
             async with self.lock_worker_is_running:
                 self.worker_is_running = False
             return
 
         session_still_active = await self.session_service.is_session_active()
         if not session_still_active:
-            logging.error("[ FeedbackColletor ] No active session, cannot start collection")
+            logging.error("[ FeedbackCollector ] No active session, cannot start collection")
             async with self.lock_worker_is_running:
                 self.worker_is_running = False
             return
@@ -115,12 +115,23 @@ class FeedbackColletor:
                 # Personal Analytics or the screenshot grab failed 
                 # (for insance, the PA app is not running).
                 logging.error(
-                    "[ FeedbackColletor ] Error collecting feedback data (PA/screenshot): "
+                    "[ FeedbackCollector ] Error collecting feedback data (PA/screenshot): "
                     + traceback.format_exc()
                 )
                 self.timing_service.finish_iteration()
                 await asyncio.sleep(1)
                 continue
+
+            # Save locally before sending, so the data survives upload failure
+            # insert_new gives the feedback its per-session id
+            try:
+                await self.repository.insert_new(
+                    feedback, self.iam_service.get_iam_session()
+                )
+            except Exception as e:
+                logging.error(
+                    f"[ worker ] Error while saving the feedback locally: {traceback.format_exc()}"
+                )
 
             logging.info("Sending feedback")
             logging.info(json.dumps(feedback.model_dump()))
@@ -133,15 +144,6 @@ class FeedbackColletor:
             except Exception as e:
                 logging.error(
                     f"[ worker ] Error while sending feedback: {traceback.format_exc()}"
-                )
-
-            try:
-                await self.repository.insert_new(
-                    feedback, self.iam_service.get_iam_session()
-                )
-            except Exception as e:
-                logging.error(
-                    f"[ worker ] Error while saving the feedback locally: {traceback.format_exc()}"
                 )
 
             logging.info(f"Session is still active: {session_still_active}")

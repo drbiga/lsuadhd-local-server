@@ -4,7 +4,7 @@ from unittest.mock import Mock, AsyncMock
 import asyncio
 
 from session import IamSession, User
-from feedback_colletor import FeedbackColletor
+from feedback_collector import FeedbackCollector
 from feedback import Feedback, PaFeedback
 
 
@@ -153,7 +153,7 @@ class TestFeedbackCollector:
         repository,
         timing_service,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service_no_active_session,
             iam_service_no_session,
             repository,
@@ -170,7 +170,7 @@ class TestFeedbackCollector:
         repository,
         timing_service,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service_is_active_session_false,
             iam_service_with_session,
             repository,
@@ -189,7 +189,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__with_successful_ingest,
             iam_service_with_session,
             repository,
@@ -212,7 +212,7 @@ class TestFeedbackCollector:
         timing_service,
         collect_feedback,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__with_successful_ingest,
             iam_service_with_session,
             repository,
@@ -231,7 +231,7 @@ class TestFeedbackCollector:
         timing_service,
         collect_feedback,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__with_successful_ingest,
             iam_service_with_session,
             repository,
@@ -251,7 +251,7 @@ class TestFeedbackCollector:
         timing_service,
         collect_feedback,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service_no_active_session,
             iam_service_with_session,
             repository,
@@ -271,7 +271,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__with_successful_ingest,
             iam_service_with_session,
             repository,
@@ -294,7 +294,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             ingest_feedback_fails_first_works_second,
             iam_service_with_session,
             repository,
@@ -321,7 +321,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__with_successful_ingest,
             iam_service_with_session,
             repository,
@@ -344,7 +344,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service_no_active_session,
             iam_service_with_session,
             repository__insert_new__raises_exception,
@@ -368,7 +368,7 @@ class TestFeedbackCollector:
         timing_service,
         get_pa_feedback_data,
     ):
-        c = FeedbackColletor(
+        c = FeedbackCollector(
             session_service__ingest__raises_exception,
             iam_service_with_session,
             repository__insert_new__raises_exception,

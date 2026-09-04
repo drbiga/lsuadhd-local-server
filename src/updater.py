@@ -11,6 +11,21 @@ There's 2 ways to update:
 - self_update_if_needed() -> called when the app starts up
 - is_stale()              -> called by /ensure_updated from pre-session checks
 """
+# =============================================================================
+# IMPORTANT!: THIS IS THE SELF-UPDATE MECHANISM. DO NOT CASUALLY EDIT.
+# -----------------------------------------------------------------------------
+# Every deployed local server relies on this file to pull new GH releases. If a
+# change here breaks updating and that build gets published, those laptops can
+# never auto-update again. Each one then has to be fixed by hand.
+#
+# If a broken version of the updater is shipped, and a student opens the app
+# it will update. Once a rollback is created, the student will not be able to 
+# roll back. Figuring out which students were affected will not be too difficult
+# because the pre-session checks on the frontend block the session from starting
+# if the localserver is out of date.
+#
+# =============================================================================
+# vvvvvvvvvvvvvvvvvvvvvvvvvvvv DO NOT EDIT: START vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 import hashlib
 import json
 import logging
@@ -181,3 +196,4 @@ def current_build_id() -> str:
     exe = _self_path()
     if exe is None: return "source"
     return _sha256(exe)[:12]
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ DO NOT EDIT: END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

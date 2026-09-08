@@ -19,6 +19,8 @@ class BrowserService:
             raise ValueError(
                 "[ BrowserService.__init__ ] The FRONTEND_URL environment variable was not set"
             )
+        if self.frontend_url.endswith('/'):
+            self.frontend_url = self.frontend_url[:-1] # removing last "/" to set the path later
         self.env = os.getenv("ENV")
         if self.env is None or self.env == "":
             raise ValueError(
@@ -53,9 +55,9 @@ class BrowserService:
                             progress = SessionProgress(**json.loads(msg))
                             if progress.has_finished_homework():
                                 if self.env == "TEST":
-                                    webbrowser.open("http://localhost:5173/?autoclose=true")
+                                    webbrowser.open(f"{self.frontend_url}/?autoclose=true")
                                 elif self.env == "PROD":
-                                    webbrowser.open(f"{self.frontend_url}?autoclose=true")
+                                    webbrowser.open(f"{self.frontend_url}/?autoclose=true")
                                 return
                 except Exception as e:
                     logging.warning(f"[ BrowserService ] WebSocket error/disconnect: {e}")

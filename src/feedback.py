@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 
 from pydantic import BaseModel
 from typing import Optional
@@ -31,6 +30,3 @@ class PaFeedback(BaseModel):
     mouseScrollDistance: float
     mouseMoveDistance: float
     keyboardStrokes: int
-
-def clean(feedback: Feedback) -> None:
-    os.remove(feedback.screenshot)

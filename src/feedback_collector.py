@@ -90,6 +90,9 @@ class FeedbackCollector:
                 self.worker_is_running = False
             return
 
+        # Feedback ids restart at 1 for every session, so this counter has to restart too.
+        self.feedback_count = 0
+
         logging.info("Starting worker...")
         while session_still_active:
             async with self.lock_worker_is_running:

@@ -100,7 +100,11 @@ class Connection:
             pa_feedback_str = json.dumps(feedback.personal_analytics_data.model_dump())
             with open(feedback.screenshot, "rb") as screenshot_file:
                 logging.info("Sending feedback")
-                response = await self._send_feedback(pa_feedback_str, screenshot_file)
+                # Send our own per-session id. The local database is the source of truth for
+                # feedback ids, so local and cloud stay in sync.
+                response = await self._send_feedback(
+                    pa_feedback_str, screenshot_file, feedback.seqnum
+                )
         except httpx.TimeoutException:
             raise TimeoutError()
         except json.JSONDecodeError:
@@ -124,13 +128,16 @@ class Connection:
             return False
         return True
 
-    async def _send_feedback(self, pa_feedback_str: str, screenshot_file) -> dict:
+    async def _send_feedback(
+        self, pa_feedback_str: str, screenshot_file, feedback_id: int
+    ) -> dict:
         async with httpx.AsyncClient(timeout=Connection.TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{self.base_url}/session_execution/student/{self.session.user.username}/session/feedback",
                 headers={"Authorization": f"Bearer {self.session.token}"},
                 params={
                     "pa_feedback_str": pa_feedback_str,
+                    "feedback_id": feedback_id,
                 },
                 files={"screenshot_file": screenshot_file},
             )

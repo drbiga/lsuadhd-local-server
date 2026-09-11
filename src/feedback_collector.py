@@ -90,6 +90,9 @@ class FeedbackCollector:
                 self.worker_is_running = False
             return
 
+        # Feedback ids restart at 1 for every session, so this counter has to restart too.
+        self.feedback_count = 0
+
         logging.info("Starting worker...")
         while session_still_active:
             async with self.lock_worker_is_running:
@@ -132,6 +135,12 @@ class FeedbackCollector:
                 logging.error(
                     f"[ worker ] Error while saving the feedback locally: {traceback.format_exc()}"
                 )
+                # The local insert is what assigns the real per-session id, so it never ran.
+                # seqnum still holds self.feedback_count, which counts every feedback this
+                # process has ever collected across all sessions - not this session's id.
+                # Send -1 so the backend assigns the id itself, the same path it uses for
+                # older clients that send no id at all
+                feedback.seqnum = -1
 
             logging.info("Sending feedback")
             logging.info(json.dumps(feedback.model_dump()))
